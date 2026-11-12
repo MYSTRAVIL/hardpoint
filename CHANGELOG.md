@@ -2,9 +2,9 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
-## Unreleased
+## 0.2.1 (2026-11-12)
 
-- **Changed**: the source is public at [MYSTRAVIL/hardpoint](https://github.com/MYSTRAVIL/hardpoint), and `package.json` links it. Releases publish from GitHub Actions through npm trusted publishing, so each version from the next one on carries a provenance attestation that ties it to its commit and workflow run.
+- **Changed**: the source is public at [MYSTRAVIL/hardpoint](https://github.com/MYSTRAVIL/hardpoint), and `package.json` links it. Releases publish from GitHub Actions through npm trusted publishing, so from this version on each release carries a provenance attestation that ties it to its commit and workflow run. The components did not change.
 
 ## 0.2.0 (2026-11-11)
 
