@@ -81,6 +81,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 	import { pop } from '../motion/index.js';
 	import { fadeIn } from './internal/fade-in.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import { groupOptions } from './internal/groups.js';
 	import Sheet from './internal/Sheet.svelte';
 
@@ -186,6 +187,11 @@
 
 	let panelNode = $state<HTMLElement | null>(null);
 	let sheetNode = $state<HTMLElement | null>(null);
+
+	// Bits UI's portal and content mount on the first open, so a closed
+	// combobox costs only its field. The first key typed in the field opens
+	// it and lands in the field as before; the list mounts, then filters.
+	const layers = mountOnFirstOpen(() => open);
 
 	// Every open and close passes here once, whoever caused it: Bits UI
 	// (typing, Escape, an outside press, a choice, Tab), the field, the
@@ -339,7 +345,7 @@
 	<BitsCombobox.Root
 		type="single"
 		bind:value
-		bind:open
+		bind:open={() => layers.open, (next) => (open = next)}
 		{items}
 		{disabled}
 		{name}
@@ -358,7 +364,7 @@
 				aria-describedby={describedByIds}
 				aria-invalid={invalid}
 				oninput={onInput}
-				aria-controls={open ? listId : undefined}
+				aria-controls={layers.open ? listId : undefined}
 				onclick={onFieldClick}
 			>
 				{#snippet child({ props })}
@@ -368,46 +374,48 @@
 				{/snippet}
 			</BitsCombobox.Input>
 
-			<BitsCombobox.Portal>
-				<BitsCombobox.Content
-					id={listId}
-					forceMount
-					side="bottom"
-					align="start"
-					sideOffset={8}
-					collisionPadding={8}
-					aria-labelledby={labelId}
-					onInteractOutside={insidePanel}
-				>
-					{#snippet child({ wrapperProps, props, open: shown })}
-						{#if shown}
-							<div {...wrapperProps}>
-								<div
-									class="hp-combobox-panel"
-									data-form="popover"
-									data-side={props['data-side'] as string | undefined}
-									bind:this={panelNode}
-									role="presentation"
-									onpointerdown={keepFocus}
-									transition:pop
-								>
-									{@render empty(false)}
+			{#if layers.mounted}
+				<BitsCombobox.Portal>
+					<BitsCombobox.Content
+						id={listId}
+						forceMount
+						side="bottom"
+						align="start"
+						sideOffset={8}
+						collisionPadding={8}
+						aria-labelledby={labelId}
+						onInteractOutside={insidePanel}
+					>
+						{#snippet child({ wrapperProps, props, open: shown })}
+							{#if shown}
+								<div {...wrapperProps}>
 									<div
-										{...props}
-										class="hp-combobox-list"
+										class="hp-combobox-panel"
 										data-form="popover"
-										data-empty={matches.length ? undefined : ''}
-										data-keyboard={keyboard || undefined}
-										onpointermovecapture={() => (keyboard = false)}
+										data-side={props['data-side'] as string | undefined}
+										bind:this={panelNode}
+										role="presentation"
+										onpointerdown={keepFocus}
+										transition:pop
 									>
-										{@render options(false)}
+										{@render empty(false)}
+										<div
+											{...props}
+											class="hp-combobox-list"
+											data-form="popover"
+											data-empty={matches.length ? undefined : ''}
+											data-keyboard={keyboard || undefined}
+											onpointermovecapture={() => (keyboard = false)}
+										>
+											{@render options(false)}
+										</div>
 									</div>
 								</div>
-							</div>
-						{/if}
-					{/snippet}
-				</BitsCombobox.Content>
-			</BitsCombobox.Portal>
+							{/if}
+						{/snippet}
+					</BitsCombobox.Content>
+				</BitsCombobox.Portal>
+			{/if}
 		{:else}
 			<span class="hp-combobox-field hp-well-chevron">
 				<button
@@ -419,7 +427,7 @@
 					role="combobox"
 					aria-haspopup="dialog"
 					aria-expanded={open}
-					aria-controls={open ? sheetId : undefined}
+					aria-controls={layers.open ? sheetId : undefined}
 					aria-labelledby={labelId}
 					aria-describedby={describedByIds}
 					aria-invalid={invalid}
@@ -432,54 +440,56 @@
 				</button>
 			</span>
 
-			<BitsCombobox.Portal>
-				<BitsCombobox.ContentStatic id={listId} forceMount preventScroll onInteractOutside={insideSheet}>
-					{#snippet child({ props, open: shown })}
-						<Sheet
-							open={shown}
-							title={label}
-							titleId={sheetTitleId}
-							layer="popover"
-							onclose={close}
-							{closeLabel}
-							bind:ref={sheetNode}
-							id={sheetId}
-							role="dialog"
-							aria-modal="true"
-							aria-labelledby={sheetTitleId}
-							onpointerdown={keepFocus}
-						>
-							<div class="hp-combobox-search" onkeydowncapture={() => (keyboard = true)}>
-								<BitsCombobox.Input
-									{placeholder}
-									autocomplete="off"
-									spellcheck={false}
-									aria-labelledby={sheetTitleId}
-									aria-describedby={describedByIds}
-									aria-controls={open ? listId : undefined}
-									oninput={onInput}
-								>
-									{#snippet child({ props: inputProps })}
-										<input {...inputProps} class="hp-combobox-input hp-well" {@attach focusOnMount} />
-									{/snippet}
-								</BitsCombobox.Input>
-							</div>
-							{@render empty(true)}
-							<div
-								{...props}
-								class="hp-combobox-list"
-								data-form="sheet"
-								data-empty={matches.length ? undefined : ''}
+			{#if layers.mounted}
+				<BitsCombobox.Portal>
+					<BitsCombobox.ContentStatic id={listId} forceMount preventScroll onInteractOutside={insideSheet}>
+						{#snippet child({ props, open: shown })}
+							<Sheet
+								open={shown}
+								title={label}
+								titleId={sheetTitleId}
+								layer="popover"
+								onclose={close}
+								{closeLabel}
+								bind:ref={sheetNode}
+								id={sheetId}
+								role="dialog"
+								aria-modal="true"
 								aria-labelledby={sheetTitleId}
-								data-keyboard={keyboard || undefined}
-								onpointermovecapture={() => (keyboard = false)}
+								onpointerdown={keepFocus}
 							>
-								{@render options(true)}
-							</div>
-						</Sheet>
-					{/snippet}
-				</BitsCombobox.ContentStatic>
-			</BitsCombobox.Portal>
+								<div class="hp-combobox-search" onkeydowncapture={() => (keyboard = true)}>
+									<BitsCombobox.Input
+										{placeholder}
+										autocomplete="off"
+										spellcheck={false}
+										aria-labelledby={sheetTitleId}
+										aria-describedby={describedByIds}
+										aria-controls={layers.open ? listId : undefined}
+										oninput={onInput}
+									>
+										{#snippet child({ props: inputProps })}
+											<input {...inputProps} class="hp-combobox-input hp-well" {@attach focusOnMount} />
+										{/snippet}
+									</BitsCombobox.Input>
+								</div>
+								{@render empty(true)}
+								<div
+									{...props}
+									class="hp-combobox-list"
+									data-form="sheet"
+									data-empty={matches.length ? undefined : ''}
+									aria-labelledby={sheetTitleId}
+									data-keyboard={keyboard || undefined}
+									onpointermovecapture={() => (keyboard = false)}
+								>
+									{@render options(true)}
+								</div>
+							</Sheet>
+						{/snippet}
+					</BitsCombobox.ContentStatic>
+				</BitsCombobox.Portal>
+			{/if}
 		{/if}
 	</BitsCombobox.Root>
 

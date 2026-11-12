@@ -42,6 +42,7 @@
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
 	import { pop } from '../motion/index.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import Sheet from './internal/Sheet.svelte';
 
 	const uid = $props.id();
@@ -65,73 +66,80 @@
 	const wide = new MediaQuery('min-width: 600px', true);
 	const form = $derived(wide.current ? 'popover' : 'sheet');
 
+	// Bits UI's portal and content mount on the first open, so a closed
+	// popover costs only its trigger.
+	const layers = mountOnFirstOpen(() => open);
+
 	function close() {
 		open = false;
 	}
 </script>
 
 <!--
-	Bits UI gives the trigger aria-haspopup="dialog", aria-expanded and
-	aria-controls; the panel takes role="dialog" and its title as its name.
-	Focus moves into the panel on open (to the sheet's close button on
-	compact) and returns to the trigger on close. Escape, a press outside,
-	the trigger and, on compact, the close button and a swipe down close it.
+	Bits UI gives the trigger aria-haspopup="dialog", aria-expanded and,
+	while open, aria-controls; the panel takes role="dialog" and its title
+	as its name. Focus moves into the panel on open (to the sheet's close
+	button on compact) and returns to the trigger on close. Escape, a press
+	outside, the trigger and, on compact, the close button and a swipe down
+	close it.
 -->
-<BitsPopover.Root bind:open>
+<BitsPopover.Root bind:open={() => layers.open, (value) => (open = value)}>
 	<BitsPopover.Trigger>
 		{#snippet child({ props })}
 			{@render trigger({ props })}
 		{/snippet}
 	</BitsPopover.Trigger>
 
-	<BitsPopover.Portal>
-		{#if wide.current}
-			<BitsPopover.Content
-				forceMount
-				bind:ref
-				role="dialog"
-				aria-labelledby={titleId}
-				side="bottom"
-				align="start"
-				sideOffset={8}
-				collisionPadding={8}
-				{...rest}
-			>
-				{#snippet child({ wrapperProps, props, open: shown })}
-					{#if shown}
-						<div {...wrapperProps}>
-							<div {...props} class={['hp-popover', className]} data-form="popover" transition:pop>
-								<p id={titleId} class="hp-popover-title hp-label">{title}</p>
-								{@render body()}
-								{#if actions}
-									{@render actionRow()}
-								{/if}
+	{#if layers.mounted}
+		<BitsPopover.Portal>
+			{#if wide.current}
+				<BitsPopover.Content
+					forceMount
+					bind:ref
+					role="dialog"
+					aria-labelledby={titleId}
+					side="bottom"
+					align="start"
+					sideOffset={8}
+					collisionPadding={8}
+					{...rest}
+				>
+					{#snippet child({ wrapperProps, props, open: shown })}
+						{#if shown}
+							<div {...wrapperProps}>
+								<div {...props} class={['hp-popover', className]} data-form="popover" transition:pop>
+									<p id={titleId} class="hp-popover-title hp-label">{title}</p>
+									{@render body()}
+									{#if actions}
+										{@render actionRow()}
+									{/if}
+								</div>
 							</div>
-						</div>
-					{/if}
-				{/snippet}
-			</BitsPopover.Content>
-		{:else}
-			<BitsPopover.ContentStatic forceMount preventScroll bind:ref role="dialog" aria-labelledby={titleId} {...rest}>
-				{#snippet child({ props, open: shown })}
-					<Sheet
-						{...props}
-						class={['hp-popover', className]}
-						data-form="sheet"
-						open={shown}
-						layer="popover"
-						{title}
-						{titleId}
-						{closeLabel}
-						onclose={close}
-						footer={actions ? actionRow : undefined}
-					>
-						{@render body()}
-					</Sheet>
-				{/snippet}
-			</BitsPopover.ContentStatic>
-		{/if}
-	</BitsPopover.Portal>
+						{/if}
+					{/snippet}
+				</BitsPopover.Content>
+			{:else}
+				<BitsPopover.ContentStatic forceMount preventScroll bind:ref role="dialog" aria-labelledby={titleId} {...rest}>
+					{#snippet child({ props, open: shown })}
+						<Sheet
+							{...props}
+							class={['hp-popover', className]}
+							data-form="sheet"
+							open={shown}
+							layer="popover"
+							{title}
+							{titleId}
+							{closeLabel}
+							onclose={close}
+							footer={actions ? actionRow : undefined}
+						>
+							{@render body()}
+						</Sheet>
+					{/snippet}
+				</BitsPopover.ContentStatic>
+			{/if}
+		</BitsPopover.Portal>
+	{/if}
 </BitsPopover.Root>
 
 {#snippet body()}

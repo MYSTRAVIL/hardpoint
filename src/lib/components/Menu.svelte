@@ -37,10 +37,10 @@
 </script>
 
 <script lang="ts">
-	import { tick } from 'svelte';
 	import { DropdownMenu } from 'bits-ui';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { pop } from '../motion/index.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import Sheet from './internal/Sheet.svelte';
 
 	let {
@@ -100,19 +100,9 @@
 	let sheetNode = $state<HTMLElement | null>(null);
 	let triggerNode = $state<HTMLElement | null>(null);
 
-	// Bits UI's content layers (the portal, positioning, focus and dismiss
-	// handling) cost about 0.3 ms a menu, and an app may draw several closed
-	// menus per view, so they mount on the first open, not with the
-	// trigger. Until then only the trigger and its ARIA exist. They mount
-	// closed, and Bits UI sees the menu open one update later, so the first
-	// entrance plays as every later one does. They stay mounted after that.
-	let layers = $state(false);
-	let ready = $state(false);
-	$effect(() => {
-		if (!open || layers) return;
-		layers = true;
-		tick().then(() => (ready = true));
-	});
+	// Bits UI's portal and content mount on the first open (about 0.3 ms a
+	// closed menu, and an app may draw several per view).
+	const layers = mountOnFirstOpen(() => open);
 
 	function close() {
 		open = false;
@@ -165,7 +155,7 @@
 	it and return focus to the trigger. From 600px a press outside closes it
 	and leaves focus where the press put it; Tab closes it and moves on.
 -->
-<DropdownMenu.Root bind:open={() => open && ready, (value) => (open = value)}>
+<DropdownMenu.Root bind:open={() => layers.open, (value) => (open = value)}>
 	<DropdownMenu.Trigger
 		bind:ref={triggerNode}
 		onkeydowncapture={() => (keyboard = true)}
@@ -176,7 +166,7 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 
-	{#if layers}
+	{#if layers.mounted}
 		<DropdownMenu.Portal>
 			{#if wide.current}
 				<DropdownMenu.Content forceMount bind:ref {...placement} {onInteractOutside} {onCloseAutoFocus} {...rest}>

@@ -40,21 +40,34 @@ const THEMES = ['dark', 'light'];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Counts animation frames over the next 1.5 s in which an open menu or its
-// sheet animates: proof that an entrance played.
-const recordEntrance = (page) =>
-	page.evaluate(() => {
+// Counts animation frames over the next 1.5 s in which an element matching
+// `selector`, or one inside it, animates: proof that an entrance played.
+const recordEntrance = (page, selector = '[role=menu], .hp-sheet') =>
+	page.evaluate((selector) => {
 		window.__entrance = 0;
 		const start = performance.now();
 		const frame = () => {
 			const moving = document
 				.getAnimations()
-				.some((a) => a.effect?.target instanceof Element && a.effect.target.closest('[role=menu], .hp-sheet'));
+				.some((a) => a.effect?.target instanceof Element && a.effect.target.closest(selector));
 			if (moving) window.__entrance++;
 			if (performance.now() - start < 1500) requestAnimationFrame(frame);
 		};
 		requestAnimationFrame(frame);
-	});
+	}, selector);
+
+const assertEntrance = async (page) => {
+	if (!(await page.evaluate(() => window.__entrance))) throw new Error('no entrance animation on the first open');
+};
+
+// Bits UI's portal mounts its own root into <body>; a closed overlay whose
+// layers wait for the first open adds none.
+const bodyNodes = (page) => page.evaluate(() => document.body.childNodes.length);
+
+// The attributes `names` of the element `loc` finds, null where missing.
+const attrs = (loc, names) => loc.evaluate((n, names) => names.map((a) => n.getAttribute(a)), names);
+
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // The computed display of the browser's own cancel button inside the search
 // input `selector` matches. It sits in the input's user-agent shadow root,
@@ -111,6 +124,39 @@ const drivers = {
 
 	async popovers(c) {
 		const { page } = c;
+		const POPUP = ['aria-haspopup', 'aria-expanded', 'aria-controls'];
+		await c.step('closed popovers mount no layers; trigger ARIA', async () => {
+			const aria = await attrs(page.getByRole('button', { name: 'Plain popover', exact: true }), POPUP);
+			if (!same(aria, ['dialog', 'false', null])) throw new Error('closed trigger ARIA: ' + JSON.stringify(aria));
+			const before = await bodyNodes(page);
+			await c.press(page.getByRole('button', { name: 'Mount three popovers' }));
+			await page.getByRole('button', { name: 'Filter 3' }).waitFor({ timeout: 3000 });
+			const added = (await bodyNodes(page)) - before;
+			if (added !== 0) throw new Error(`three closed popovers added ${added} nodes to <body>`);
+			if (await page.getByRole('dialog').count()) throw new Error('a closed popover is in the DOM');
+		});
+		await c.step('first open plays the entrance and moves focus in; aria-controls names the panel', async () => {
+			const trigger = page.getByRole('button', { name: 'Filter 1' });
+			await recordEntrance(page, '[role=dialog], .hp-sheet');
+			await c.press(trigger);
+			const panel = page.getByRole('dialog');
+			await panel.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await assertEntrance(page);
+			const [, expanded, controls] = await attrs(trigger, POPUP);
+			const id = await panel.getAttribute('id');
+			if (expanded !== 'true' || !controls || controls !== id) {
+				throw new Error(`open trigger: expanded=${expanded} controls=${controls}, panel id=${id}`);
+			}
+			if (!(await panel.evaluate((n) => n.contains(document.activeElement)))) {
+				throw new Error('focus after the first open: ' + (await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))));
+			}
+			await page.keyboard.press('Escape');
+			await panel.waitFor({ state: 'hidden', timeout: 3000 });
+			const closed = await attrs(trigger, POPUP);
+			if (!same(closed, ['dialog', 'false', null])) throw new Error('trigger ARIA after closing: ' + JSON.stringify(closed));
+			if (!(await trigger.evaluate((n) => n === document.activeElement))) throw new Error('focus did not return to the trigger');
+		});
 		for (const [name, bodyId] of [
 			['Plain popover', null],
 			['Style prop', 'style-body'],
@@ -138,6 +184,111 @@ const drivers = {
 
 	async selects(c) {
 		const { page } = c;
+		const POPUP = ['role', 'aria-haspopup', 'aria-expanded', 'aria-controls'];
+		const size = page.getByRole('combobox', { name: 'Size' });
+		await c.step('closed select and comboboxes mount no layers; trigger ARIA and value', async () => {
+			const before = await bodyNodes(page);
+			await c.press(page.getByRole('button', { name: 'Mount closed fields' }));
+			await size.waitFor({ timeout: 3000 });
+			await wait(100);
+			const added = (await bodyNodes(page)) - before;
+			if (added !== 0) throw new Error(`a closed select and two comboboxes added ${added} nodes to <body>`);
+			if (await page.getByRole('listbox').count()) throw new Error('a closed list is in the DOM');
+			const sizeAria = await attrs(size, POPUP);
+			if (!same(sizeAria, ['combobox', 'listbox', 'false', null])) throw new Error('closed Select ARIA: ' + JSON.stringify(sizeAria));
+			const sizeText = (await size.textContent()).trim();
+			if (sizeText !== 'Medium') throw new Error('closed Select shows ' + sizeText);
+			// From 600px the field is Bits UI's input; below it, Hardpoint's button that opens the sheet.
+			const tag = page.getByRole('combobox', { name: 'Tag 2' });
+			const tagAria = await attrs(tag, POPUP);
+			const want = ['combobox', c.touch ? 'dialog' : null, 'false', null];
+			if (!same(tagAria, want)) throw new Error('closed Combobox ARIA: ' + JSON.stringify(tagAria));
+			const tagText = c.touch ? (await tag.textContent()).trim() : await tag.inputValue();
+			if (tagText !== 'Docs site') throw new Error('closed Combobox shows ' + tagText);
+		});
+		await c.step('select typeahead on the closed trigger before the first open', async () => {
+			const before = await bodyNodes(page);
+			await size.focus();
+			await page.keyboard.press('l');
+			await wait(200);
+			const text = (await size.textContent()).trim();
+			if (text !== 'Large') throw new Error('typeahead chose ' + text);
+			if ((await bodyNodes(page)) !== before || (await page.getByRole('listbox').count())) throw new Error('typeahead mounted the list');
+		});
+		await c.step('select first open by keys plays the entrance and highlights the chosen option', async () => {
+			await size.focus();
+			await recordEntrance(page, '[role=listbox], .hp-sheet');
+			await page.keyboard.press('Enter');
+			const list = page.getByRole('listbox');
+			await list.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await assertEntrance(page);
+			const [, , expanded, controls] = await attrs(size, POPUP);
+			const id = await list.getAttribute('id');
+			if (expanded !== 'true' || !controls || controls !== id) {
+				throw new Error(`open trigger: expanded=${expanded} controls=${controls}, list id=${id}`);
+			}
+			const highlighted = (await list.locator('[data-highlighted]').textContent())?.trim();
+			if (highlighted !== 'Large') throw new Error('highlighted on the first open: ' + highlighted);
+			await page.keyboard.press('Escape');
+			await list.waitFor({ state: 'hidden', timeout: 3000 });
+			const closed = await attrs(size, POPUP);
+			if (!same(closed, ['combobox', 'listbox', 'false', null])) throw new Error('trigger ARIA after closing: ' + JSON.stringify(closed));
+		});
+		await c.step('combobox first open: entrance, ARIA, and typing filters', async () => {
+			if (c.touch) {
+				// Below 600px a press opens the sheet with the search input focused.
+				// The input in the sheet is a combobox named by the same title, so
+				// the field is the first.
+				const tag = page.getByRole('combobox', { name: 'Tag 1' }).first();
+				await recordEntrance(page, '.hp-sheet');
+				await c.press(tag);
+				const sheet = page.getByRole('dialog', { name: 'Tag 1' });
+				await sheet.waitFor({ state: 'visible', timeout: 3000 });
+				await wait(400);
+				await assertEntrance(page);
+				const [, , expanded, controls] = await attrs(tag, POPUP);
+				if (expanded !== 'true' || controls !== (await sheet.getAttribute('id'))) {
+					throw new Error(`open trigger: expanded=${expanded} controls=${controls}`);
+				}
+				await page.keyboard.type('des', { delay: 30 });
+				await wait(300);
+				const highlighted = await page.getByRole('listbox').locator('[data-highlighted]').textContent();
+				if (!highlighted?.startsWith('Design system')) throw new Error('highlighted after typing: ' + highlighted);
+				await c.press(sheet.getByRole('button', { name: /^close$/i }));
+				await sheet.waitFor({ state: 'hidden', timeout: 3000 });
+				return;
+			}
+			// From 600px the first key typed in the closed field opens the list,
+			// replaces the chosen label and filters.
+			for (const [name, typed, match, label] of [
+				['Tag 1', 'des', 'Design system', ''],
+				['Tag 2', 'web', 'Web app', 'Docs site']
+			]) {
+				const field = page.getByRole('combobox', { name });
+				await field.focus();
+				await recordEntrance(page, '.hp-combobox-panel');
+				await page.keyboard.type(typed, { delay: 30 });
+				const list = page.getByRole('listbox');
+				await list.waitFor({ state: 'visible', timeout: 3000 });
+				await wait(400);
+				await assertEntrance(page);
+				const value = await field.inputValue();
+				if (value !== typed) throw new Error(`${name}: field holds "${value}" after typing "${typed}"`);
+				const options = (await list.getByRole('option').allTextContents()).map((t) => t.trim());
+				if (options.length !== 1 || !options[0].startsWith(match)) throw new Error(`${name}: options ${JSON.stringify(options)}`);
+				const highlightedId = await list.locator('[data-highlighted]').getAttribute('id');
+				const [expanded, controls, active] = await attrs(field, ['aria-expanded', 'aria-controls', 'aria-activedescendant']);
+				if (expanded !== 'true' || controls !== (await list.getAttribute('id')) || !highlightedId || active !== highlightedId) {
+					throw new Error(`${name}: expanded=${expanded} controls=${controls} activedescendant=${active} highlighted=${highlightedId}`);
+				}
+				await page.keyboard.press('Escape');
+				await list.waitFor({ state: 'hidden', timeout: 3000 });
+				const after = await attrs(field, ['aria-expanded', 'aria-controls']);
+				if (!same(after, ['false', null])) throw new Error(`${name}: ARIA after closing ${JSON.stringify(after)}`);
+				if ((await field.inputValue()) !== label) throw new Error(`${name}: field shows "${await field.inputValue()}" after Escape`);
+			}
+		});
 		await c.step('select list/sheet, pick with pointer', async () => {
 			await c.press(page.getByRole('combobox', { name: 'Language' }));
 			await page.getByRole('listbox').waitFor({ state: 'visible', timeout: 3000 });
@@ -179,19 +330,16 @@ const drivers = {
 	async menus(c) {
 		const { page } = c;
 		const triggerAria = (name) =>
-			page
-				.getByRole('button', { name, exact: true })
-				.evaluate((n) => ['aria-haspopup', 'aria-expanded', 'aria-controls'].map((a) => n.getAttribute(a)));
+			attrs(page.getByRole('button', { name, exact: true }), ['aria-haspopup', 'aria-expanded', 'aria-controls']);
 		await c.step('closed menus mount no layers; trigger ARIA', async () => {
 			const aria = await triggerAria('View');
-			if (aria[0] !== 'menu' || aria[1] !== 'false' || aria[2] !== null) {
+			if (!same(aria, ['menu', 'false', null])) {
 				throw new Error('closed trigger ARIA (haspopup, expanded, controls): ' + JSON.stringify(aria));
 			}
-			// Bits UI's portal mounts its own root into <body>; a closed menu has none.
-			const before = await page.evaluate(() => document.body.childNodes.length);
+			const before = await bodyNodes(page);
 			await c.press(page.getByRole('button', { name: 'Mount three menus' }));
 			await page.getByRole('button', { name: 'More 3' }).waitFor({ timeout: 3000 });
-			const added = (await page.evaluate(() => document.body.childNodes.length)) - before;
+			const added = (await bodyNodes(page)) - before;
 			if (added !== 0) throw new Error(`three closed menus added ${added} nodes to <body>`);
 			if (await page.getByRole('menu').count()) throw new Error('a closed menu is in the DOM');
 		});
@@ -201,7 +349,7 @@ const drivers = {
 			const menu = page.getByRole('menu');
 			await menu.waitFor({ state: 'visible', timeout: 3000 });
 			await wait(400);
-			if (!(await page.evaluate(() => window.__entrance))) throw new Error('no entrance animation on the first open');
+			await assertEntrance(page);
 			const [, expanded, controls] = await triggerAria('More 1');
 			const id = await menu.getAttribute('id');
 			if (expanded !== 'true' || !controls || controls !== id) {
@@ -358,6 +506,46 @@ const drivers = {
 
 	async tooltips(c) {
 		const { page } = c;
+		const tip = (text) => page.getByRole('tooltip').filter({ hasText: text });
+		await c.step('closed tooltips mount no layers; no description while closed', async () => {
+			const before = await bodyNodes(page);
+			await c.press(page.getByRole('button', { name: 'Mount three tooltips' }));
+			await page.getByRole('button', { name: 'T3' }).waitFor({ timeout: 3000 });
+			await wait(100);
+			const added = (await bodyNodes(page)) - before;
+			if (added !== 0) throw new Error(`three closed tooltips added ${added} nodes to <body>`);
+			if (await page.getByRole('tooltip').count()) throw new Error('a closed tooltip is in the DOM');
+			const described = await page.getByRole('button', { name: 'T1' }).getAttribute('aria-describedby');
+			if (described !== null) throw new Error('closed trigger has aria-describedby=' + described);
+		});
+		await c.step('first open by keyboard focus: entrance; the trigger is described by the tooltip', async () => {
+			const trigger = page.getByRole('button', { name: 'T1' });
+			await page.getByRole('button', { name: 'Mount three tooltips' }).focus();
+			await recordEntrance(page, '[role=tooltip]');
+			await page.keyboard.press('Tab');
+			await tip('Upload 1').waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await assertEntrance(page);
+			const described = await trigger.getAttribute('aria-describedby');
+			const id = await tip('Upload 1').getAttribute('id');
+			if (!described || described !== id) throw new Error(`open trigger: aria-describedby=${described}, tooltip id=${id}`);
+			await page.keyboard.press('Escape');
+			await tip('Upload 1').waitFor({ state: 'hidden', timeout: 3000 });
+			const after = await trigger.getAttribute('aria-describedby');
+			if (after !== null) throw new Error('aria-describedby after closing: ' + after);
+		});
+		await c.step('first open by pointer: entrance; the trigger is described by the tooltip', async () => {
+			if (c.touch) return; // a touch never opens a tooltip
+			await recordEntrance(page, '[role=tooltip]');
+			await page.getByRole('button', { name: 'T2' }).hover();
+			await tip('Upload 2').waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await assertEntrance(page);
+			const described = await page.getByRole('button', { name: 'T2' }).getAttribute('aria-describedby');
+			if (!described || described !== (await tip('Upload 2').getAttribute('id'))) throw new Error('hovered trigger: aria-describedby=' + described);
+			await page.mouse.move(700, 600);
+			await tip('Upload 2').waitFor({ state: 'hidden', timeout: 3000 });
+		});
 		await c.step('tooltip by pointer', async () => {
 			if (c.touch) return; // a touch never opens a tooltip: keyboard only
 			await page.getByRole('button', { name: 'Plain', exact: true }).hover();

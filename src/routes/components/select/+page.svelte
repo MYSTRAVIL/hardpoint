@@ -190,6 +190,10 @@
 				<kbd>Escape</kbd> or <kbd>Tab</kbd> closes.
 			</li>
 			<li>
+				A select that was never opened mounts only its field, so a view can hold many. The list mounts on the
+				first open and stays mounted after it. Typing on the closed trigger chooses an option before that too.
+			</li>
+			<li>
 				<code>group</code> puts an option under a heading with that name, as written. Options without a
 				group come first; then each group, in the order its first option appears, with its options in
 				their order. Each group is a <code>role="group"</code> named by its heading. The heading is not an

@@ -2,6 +2,10 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
+## 0.4.0 (2026-11-12)
+
+- **Changed**: `Popover`, `Select`, `Combobox` and `Tooltip` mount Bits UI's portal and content on the first open instead of with the trigger, as `Menu` does since 0.3.0, so a closed one adds nothing to `<body>` (Bits UI's portal added about 35 nodes each). The trigger's ARIA is the same while closed: `aria-haspopup` (Popover `dialog`, Select `listbox`), `role="combobox"` on Select and Combobox, `aria-expanded`, and `aria-controls` only while open. Select and Combobox show the chosen label in the closed field, and a Tooltip still describes its trigger only while open. Select's typeahead on the closed trigger and the first key typed in a closed Combobox work before the first open. The first open still plays the entrance: the content mounts closed and opens one tick later. A DOM test, for example in happy-dom, now awaits one `tick()` before `flushSync()` after the first open; later opens need none.
+
 ## 0.3.0 (2026-11-12)
 
 - **Added**:

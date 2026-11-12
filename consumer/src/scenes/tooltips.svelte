@@ -1,5 +1,6 @@
 <script>
 	import { Button, Tooltip, TooltipGroup } from '@mystravil/hardpoint';
+	let more = $state(false);
 </script>
 
 <main class="page">
@@ -19,5 +20,15 @@
 				{#snippet trigger({ props })}<Button {...props}>G2</Button>{/snippet}
 			</Tooltip>
 		</TooltipGroup>
+	</div>
+	<div class="row">
+		<Button onclick={() => (more = true)}>Mount three tooltips</Button>
+		{#if more}
+			{#each [1, 2, 3] as i (i)}
+				<Tooltip text={`Upload ${i}`} delayDuration={0}>
+					{#snippet trigger({ props })}<Button {...props}>T{i}</Button>{/snippet}
+				</Tooltip>
+			{/each}
+		{/if}
 	</div>
 </main>

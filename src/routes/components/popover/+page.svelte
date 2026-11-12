@@ -50,6 +50,10 @@
 				to it; <code>bind:open</code> also opens and closes it from code.
 			</li>
 			<li>
+				A popover that was never opened mounts only its trigger, so a view can hold many. The panel mounts on
+				the first open and stays mounted after it.
+			</li>
+			<li>
 				<code>actions</code> renders an action row and receives <code>close</code>. With or without it, the
 				panel closes on <kbd>Escape</kbd>, a press outside or its trigger, and on a phone also on the close
 				button or a swipe down.

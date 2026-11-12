@@ -204,6 +204,10 @@
 				<kbd>C</kbd> copies what is selected. On phones the sheet’s search input takes the keys.
 			</li>
 			<li>
+				A combobox that was never opened mounts only its field, so a view can hold many. The list mounts on
+				the first open and stays mounted after it; the first key typed opens it and filters as usual.
+			</li>
+			<li>
 				<code>name</code> submits the value with a form. Extra attributes, event handlers and
 				<code>ref</code> go to the field control: the text input from 600px, the button below it.
 				<code>class</code> goes to the root.

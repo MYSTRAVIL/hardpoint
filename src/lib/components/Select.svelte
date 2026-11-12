@@ -56,6 +56,7 @@
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
 	import { pop } from '../motion/index.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import { groupOptions } from './internal/groups.js';
 	import Sheet from './internal/Sheet.svelte';
 
@@ -94,6 +95,11 @@
 	let keyboard = $state(false);
 
 	let sheetNode = $state<HTMLElement | null>(null);
+
+	// Bits UI's portal and content mount on the first open, so a closed
+	// select costs only its trigger. Typeahead on the closed trigger reads
+	// Bits UI's `items`, not the options, so it works before that.
+	const layers = mountOnFirstOpen(() => open);
 
 	function close() {
 		open = false;
@@ -150,7 +156,14 @@
 >
 	<label class="hp-select-label hp-label" id={labelId} for={id}>{label}</label>
 
-	<BitsSelect.Root type="single" bind:value bind:open items={grouped.ordered} {disabled} {name}>
+	<BitsSelect.Root
+		type="single"
+		bind:value
+		bind:open={() => layers.open, (next) => (open = next)}
+		items={grouped.ordered}
+		{disabled}
+		{name}
+	>
 		<BitsSelect.Trigger bind:ref {id} aria-labelledby={labelId} {...rest}>
 			{#snippet child({ props })}
 				<span class="hp-select-field hp-well-chevron">
@@ -161,58 +174,60 @@
 			{/snippet}
 		</BitsSelect.Trigger>
 
-		<BitsSelect.Portal>
-			{#if wide.current}
-				<BitsSelect.Content
-					forceMount
-					side="bottom"
-					align="start"
-					sideOffset={8}
-					collisionPadding={8}
-					aria-labelledby={labelId}
-				>
-					{#snippet child({ wrapperProps, props, open: shown })}
-						{#if shown}
-							<div {...wrapperProps}>
+		{#if layers.mounted}
+			<BitsSelect.Portal>
+				{#if wide.current}
+					<BitsSelect.Content
+						forceMount
+						side="bottom"
+						align="start"
+						sideOffset={8}
+						collisionPadding={8}
+						aria-labelledby={labelId}
+					>
+						{#snippet child({ wrapperProps, props, open: shown })}
+							{#if shown}
+								<div {...wrapperProps}>
+									<div
+										{...props}
+										class="hp-select-list"
+										data-form="popover"
+										data-keyboard={keyboard || undefined}
+										onpointermovecapture={() => (keyboard = false)}
+										transition:pop
+									>
+										{@render options(false)}
+									</div>
+								</div>
+							{/if}
+						{/snippet}
+					</BitsSelect.Content>
+				{:else}
+					<BitsSelect.ContentStatic forceMount preventScroll aria-labelledby={labelId} onInteractOutside={insideSheet}>
+						{#snippet child({ props, open: shown })}
+							<Sheet
+								open={shown}
+								layer="popover"
+								title={label}
+								onclose={close}
+								bind:ref={sheetNode}
+								onpointerdown={keepFocus}
+							>
 								<div
 									{...props}
 									class="hp-select-list"
-									data-form="popover"
+									data-form="sheet"
 									data-keyboard={keyboard || undefined}
 									onpointermovecapture={() => (keyboard = false)}
-									transition:pop
 								>
-									{@render options(false)}
+									{@render options(true)}
 								</div>
-							</div>
-						{/if}
-					{/snippet}
-				</BitsSelect.Content>
-			{:else}
-				<BitsSelect.ContentStatic forceMount preventScroll aria-labelledby={labelId} onInteractOutside={insideSheet}>
-					{#snippet child({ props, open: shown })}
-						<Sheet
-							open={shown}
-							layer="popover"
-							title={label}
-							onclose={close}
-							bind:ref={sheetNode}
-							onpointerdown={keepFocus}
-						>
-							<div
-								{...props}
-								class="hp-select-list"
-								data-form="sheet"
-								data-keyboard={keyboard || undefined}
-								onpointermovecapture={() => (keyboard = false)}
-							>
-								{@render options(true)}
-							</div>
-						</Sheet>
-					{/snippet}
-				</BitsSelect.ContentStatic>
-			{/if}
-		</BitsSelect.Portal>
+							</Sheet>
+						{/snippet}
+					</BitsSelect.ContentStatic>
+				{/if}
+			</BitsSelect.Portal>
+		{/if}
 	</BitsSelect.Root>
 </div>
 

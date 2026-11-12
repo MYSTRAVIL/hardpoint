@@ -46,6 +46,7 @@
 <script lang="ts">
 	import { createAttachmentKey } from 'svelte/attachments';
 	import { pop } from '../motion/index.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import { inTooltipGroup } from './TooltipGroup.svelte';
 
 	let {
@@ -78,6 +79,11 @@
 			if (closeOpen === close) closeOpen = null;
 		};
 	});
+
+	// Bits UI's portal and content mount on the first open, so a closed
+	// tooltip costs only its control. The trigger's description exists only
+	// while the tooltip is open, so it is the same either way.
+	const layers = mountOnFirstOpen(() => open);
 
 	// The control, kept to compare its name with the text.
 	let control = $state<Element | null>(null);
@@ -136,24 +142,26 @@
 	and the focus rule, so they hold inside a group too.
 -->
 {#snippet tooltip()}
-	<BitsTooltip.Root bind:open {delayDuration} ignoreNonKeyboardFocus>
+	<BitsTooltip.Root bind:open={() => layers.open, (value) => (open = value)} {delayDuration} ignoreNonKeyboardFocus>
 		<BitsTooltip.Trigger>
 			{#snippet child({ props })}
 				{@render trigger({ props: triggerProps(props) })}
 			{/snippet}
 		</BitsTooltip.Trigger>
 
-		<BitsTooltip.Portal>
-			<BitsTooltip.Content forceMount bind:ref side="top" align="center" sideOffset={8} collisionPadding={8} {...rest}>
-				{#snippet child({ wrapperProps, props, open: shown })}
-					{#if shown}
-						<div {...wrapperProps}>
-							<div {...props} role="tooltip" class={['hp-tooltip', className]} transition:pop>{text}</div>
-						</div>
-					{/if}
-				{/snippet}
-			</BitsTooltip.Content>
-		</BitsTooltip.Portal>
+		{#if layers.mounted}
+			<BitsTooltip.Portal>
+				<BitsTooltip.Content forceMount bind:ref side="top" align="center" sideOffset={8} collisionPadding={8} {...rest}>
+					{#snippet child({ wrapperProps, props, open: shown })}
+						{#if shown}
+							<div {...wrapperProps}>
+								<div {...props} role="tooltip" class={['hp-tooltip', className]} transition:pop>{text}</div>
+							</div>
+						{/if}
+					{/snippet}
+				</BitsTooltip.Content>
+			</BitsTooltip.Portal>
+		{/if}
 	</BitsTooltip.Root>
 {/snippet}
 

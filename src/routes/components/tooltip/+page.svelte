@@ -77,6 +77,10 @@
 				tooltip shows at a time: opening one closes any other.
 			</li>
 			<li>
+				A tooltip that was never opened mounts only its control, so a toolbar can hold many. The tooltip mounts
+				on the first open and stays mounted after it.
+			</li>
+			<li>
 				On touch a tap runs the control’s action and opens nothing. Below, the samples show the two ways to keep
 				the text reachable there: an icon button names itself in <code class="nowrap">aria-label</code> with the same text, and a
 				shortened name shows in full on touch screens.
