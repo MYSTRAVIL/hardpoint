@@ -1,0 +1,283 @@
+/* Hardpoint tokens. Framework-free: plain custom properties and media queries,
+   no Svelte selectors, so vanilla apps (omp-remote) can import this file.
+   Dark by default, light through data-theme (see the light palette below).
+   Colours come from omp-remote's apps/web/public/styles.css; --border-control,
+   --surface-band and --surface-selected are new (see docs/BRIEF.md, Tokens).
+
+   Breakpoints (custom properties cannot be used in @media, so they live here
+   as a comment; components repeat the numbers):
+     compact   < 600px
+     medium    600–899px
+     expanded  900–1199px
+     large     >= 1200px */
+
+:root {
+	color-scheme: dark;
+
+	/* Surfaces. Major surfaces stay literal black. */
+	--canvas: #000000;
+	--surface: #000000;
+	/* Small hover, active and expanded regions. */
+	--surface-hover: #0a0a0a;
+	/* The selected tint, under a 3px titanium edge. 1.17:1 on black, so it
+	   shows; --text 14:1 and --muted 7.4:1 on it. */
+	--surface-selected: #191712;
+	/* Bubbles, option lists and tracks that must read as a layer. */
+	--surface-raised: #191712;
+	/* The table header band: one filled strip with caps column labels.
+	   --text 9.3:1 and --muted 4.9:1 on it. */
+	--surface-band: #3a3632;
+	/* Dims the page behind a dialog or sheet. */
+	--scrim: #000000cc;
+
+	/* Inks. Two only: no third grey. */
+	--text: #e6e3dc; /* 16.4:1 on black */
+	--muted: #aaa69f; /* 8.7:1 on black */
+
+	/* Titanium accent and focus. Not a hue. */
+	--accent: #e6e3dc;
+	--focus: #e6e3dc;
+
+	/* Lines. --border is for dividers and decoration only (2.5:1); anything
+	   that identifies a control uses --border-control (3:1 or more). */
+	--border: #514d48;
+	--border-control: #625d57; /* 3.2:1 on black, 3.0:1 on --surface-hover */
+
+	/* Status. Meaning only, never brand. */
+	--danger: #ff3b35; /* errors and failures */
+	--warn: #f2c14e; /* waiting, blocked, needs you */
+	--ok: #35c46b; /* done, success, online */
+
+	/* Glyphs drawn as backgrounds and masks. The chevron is a mask, painted
+	   in --muted. */
+	--select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23AAA69F' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+	--status-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3 3h14v14H3zM10 9v5M10 6v1' fill='none' stroke='%23E6E3DC' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+
+	/* Faces. Each has a fixed role; see base.css type roles. The fallback
+	   faces come from fonts.css: local fonts sized to Geist, so text keeps
+	   its width when Geist arrives. Without fonts.css they are skipped. */
+	--sans: 'Geist', 'Geist Fallback Arial', 'Geist Fallback Roboto', sans-serif;
+	--mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+	--pixel: 'Geist Pixel Square', var(--mono);
+
+	/* Type scale. Inputs are 16px at every width. 14px is for dense UI on
+	   fine pointers only. */
+	--type-label: 12px; /* tracked caps labels */
+	--type-caption: 13px;
+	--type-dense: 14px;
+	--type-body: 16px;
+	--type-section: 20px;
+	--type-page: 24px; /* 20px on compact */
+	/* The view title in the shell header, in tracked caps. */
+	--type-view: 20px; /* 16px on compact */
+	/* The subject only: 32px up to 400px wide, 56px from 1200px. */
+	--type-display: clamp(32px, 20px + 3vw, 56px);
+	/* Geist Pixel draws on a 0.038em module; only multiples of 26.32px land
+	   the module on whole pixels. Line heights keep the baseline on a whole
+	   pixel (Blink rounds ascent 1005 and descent 295 per size). */
+	--type-pixel: 26.32px;
+	--type-pixel-leading: 32px;
+	--type-pixel-lg: 52.63px;
+	--type-pixel-lg-leading: 63px;
+
+	/* The longest line of reading text: about 70 characters of English in
+	   Geist, at any font size. In em, not ch: Geist's zero is 0.663em wide,
+	   so 60ch held about 86 characters, and ch changes width when Geist
+	   replaces the fallback. */
+	--measure: 32em;
+
+	/* Caps labels. Set --label-transform: none to turn caps off. */
+	--label-transform: uppercase;
+	--label-tracking: 0.06em;
+
+	/* Space: a 4px grid. Gaps between groups are at least twice the gap
+	   within a group. Vertical rhythm multiplies by --density. */
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 20px;
+	--space-6: 24px;
+	--space-8: 32px;
+	--space-10: 40px;
+	--space-12: 48px;
+	--space-16: 64px;
+	/* Page edges, shared by every page. */
+	--gutter: 16px;
+	/* How far fills (table bands, row tints) reach past the text edge into
+	   the gutter, so text keeps the page edge while fills extend further. */
+	--bleed: 16px;
+	/* The shell's one header row, before the top safe area. Sticky elements
+	   below it offset by this; so does scroll-padding. */
+	--header-height: 56px;
+
+	/* Density scales vertical rhythm: 1 as designed, 0.625 compact. */
+	--density: 1;
+	/* Control height by pointer: 36px fine, 32px fine + compact, 44px coarse. */
+	--control-height: 36px;
+	/* Minimum hit area: 24px anywhere (WCAG 2.5.8), 44px on coarse pointers. */
+	--hit-target: 24px;
+
+	/* Motion. Durations by role (BRIEF, motion rule 4); exits are about 70
+	   percent of entrances. Responses ease out with --settle; never ease in.
+	   The JS transitions in ./motion read these from the element. */
+	--settle: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--dur-press: 80ms; /* :active feedback */
+	--dur-hover: 120ms; /* hover, fine pointers only */
+	/* Short motion on frequent actions (decided 2026-11-11): short enough to
+	   be noticed, never in the way of daily use. Each one fades opacity or
+	   colour on --settle, only when a value changes, never on the first
+	   render or a mount. Quiet motion, so it runs in both tiers, and reduced
+	   motion keeps it because nothing moves. The user chose these values on
+	   /motion on 2026-11-11 ("smooth while being quick"); 0ms is a snap. */
+	--dur-mark: 80ms; /* a selection mark fading in at its new place: checkbox check and dash, menu marks, switch thumb */
+	--dur-panel: 100ms; /* a tab panel chosen by pointer or touch fading in; keys always cut */
+	--dur-segment: 120ms; /* progress segments lighting or going out, a steps edge and tint */
+	--dur-message: 120ms; /* a field error fading in with the well's edge; it clears at once */
+	--dur-pop: 160ms; /* menus, popovers, select lists, tooltips */
+	--dur-pop-exit: 110ms;
+	--dur-sheet: 240ms; /* dialogs and sheets */
+	--dur-sheet-exit: 170ms;
+	/* Disclosure: the height snaps open and the content fades in from 0 over
+	   this time on --settle; closing cuts. The user chose height snaps and
+	   content fades on 2026-11-11. Only a fade, so it also runs under
+	   reduced motion. */
+	--dur-expand: 120ms;
+	/* Expressive stagger (motion rule 7): the first six items, 30ms apart,
+	   each entering in 150ms, so the sequence ends by 300ms. */
+	--dur-enter: 150ms;
+	--stagger-step: 30ms;
+	/* Content replacing skeleton blocks (motion rule 2): LoadRegion
+	   crossfades from the blocks to the content over this time when the
+	   blocks were on screen. The user chose the fade over a cut on /motion
+	   (2026-11-10); 0ms makes it a cut. Only a fade, so it also runs under
+	   reduced motion. */
+	--dur-reveal: 150ms;
+	/* Number ticks (motion rule 5): old value to new on a change, never on
+	   load. The user chose --settle on 2026-11-10 over the reel's counter
+	   curve, cubic-bezier(0.37, 0, 0.63, 1). */
+	--tick: var(--settle);
+	--dur-tick: 400ms;
+	/* Image resolve (motion rule 10), expressive tier only: an image that
+	   arrives after its skeleton showed sharpens from a mosaic in five steps
+	   of this length (MediaImage). One reel frame at 24 fps. */
+	--resolve-step: 42ms;
+	/* Layer scale (z-index): sticky content < shell < dialog and sheet < popover, menu, select < toast < tooltip. */
+	--layer-sticky: 3;
+	--layer-shell: 5;
+	--layer-dialog: 40;
+	--layer-popover: 50;
+	/* The toast, over dialogs, sheets and popovers, so a toast fired from one shows; under tooltips. */
+	--layer-toast: 55;
+	--layer-tooltip: 60;
+	/* Spinner: the glyph steps every 167ms (4 frames of the reel) and appears only after 300ms of waiting. */
+	--spinner-step: 167ms;
+	--spinner-delay: 300ms;
+	/* Skeleton: blocks show only once a wait passes 300ms (motion rule 2). */
+	--skeleton-delay: 300ms;
+	/* AppShell navigation: the rail from 600px, the sidebar from 900px, the drawer's widest panel on compact. */
+	--rail-width: 80px;
+	--sidebar-width: 240px;
+	--drawer-width: 320px;
+	/* ListDetail: the list pane's width side by side, gutters included. The
+	   narrowest phone's width, so a list laid out for the phone screen fits
+	   the column as it is. */
+	--list-detail-width: 320px;
+}
+
+/* Light palette (2026-11-11). An app picks the theme with data-theme on
+   <html>: 'light', 'dark' or 'system' (follows the device). Without the
+   attribute the theme is dark. Root only: overlays render in a portal on
+   <body>, so a theme set on a subtree would not reach them.
+   Values from omp-remote's light palette, except three tokens omp-remote
+   lacks (--surface-selected, --surface-band, --border-control) and --ok,
+   darkened from #1b7f45 so status text passes 4.5:1 on --surface-raised.
+   On --canvas: --text 15.9:1, --muted 6.0:1, --border 2.5:1 (decoration),
+   --border-control 3.4:1 (3.0:1 on --surface-hover). The chevron is a
+   mask, so its stroke only matters to apps that paint it as an image.
+   The two light blocks must stay identical. */
+:root[data-theme='light'] {
+	color-scheme: light;
+	--canvas: #f7f5f0;
+	--surface: #f7f5f0;
+	--surface-hover: #edeae3;
+	/* 1.15:1 on --canvas, as the dark tint is 1.17:1 on black; --text 13.8:1
+	   and --muted 5.2:1 on it. */
+	--surface-selected: #e9e5dc;
+	--surface-raised: #e9e5dc;
+	/* 1.30:1 on --canvas, the darkest band that keeps --muted at 4.5:1 or
+	   more (disabled buttons and pages): --text 12.2:1, --muted 4.6:1. */
+	--surface-band: #ddd8cd;
+	--scrim: #1c1a1780;
+	--text: #1c1a17;
+	--muted: #625d55;
+	--accent: #1c1a17;
+	--focus: #1c1a17;
+	--border: #a39c92;
+	--border-control: #8c857b;
+	--danger: #c4211b; /* 5.4:1 on --canvas, 4.7:1 on --surface-raised */
+	--warn: #8a5c00; /* 5.3:1, 4.6:1 */
+	--ok: #18763f; /* 5.2:1, 4.5:1 */
+	--select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23625D55' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+	--status-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3 3h14v14H3zM10 9v5M10 6v1' fill='none' stroke='%231C1A17' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: light) {
+	:root[data-theme='system'] {
+		color-scheme: light;
+		--canvas: #f7f5f0;
+		--surface: #f7f5f0;
+		--surface-hover: #edeae3;
+		--surface-selected: #e9e5dc;
+		--surface-raised: #e9e5dc;
+		--surface-band: #ddd8cd;
+		--scrim: #1c1a1780;
+		--text: #1c1a17;
+		--muted: #625d55;
+		--accent: #1c1a17;
+		--focus: #1c1a17;
+		--border: #a39c92;
+		--border-control: #8c857b;
+		--danger: #c4211b;
+		--warn: #8a5c00;
+		--ok: #18763f;
+		--select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23625D55' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+		--status-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3 3h14v14H3zM10 9v5M10 6v1' fill='none' stroke='%231C1A17' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+	}
+}
+
+/* Density applies to any subtree, not just the root, so a dense table can sit
+   inside a comfortable page. */
+[data-density='compact'] {
+	--density: 0.625;
+	--control-height: 32px;
+}
+
+/* Compact density never shrinks touch targets. */
+@media (pointer: coarse) {
+	:root,
+	[data-density='compact'] {
+		--control-height: 44px;
+		--hit-target: 44px;
+	}
+}
+
+@media (min-width: 600px) {
+	:root {
+		--gutter: 24px;
+	}
+}
+
+@media (min-width: 900px) {
+	:root {
+		--gutter: 32px;
+	}
+}
+
+@media (max-width: 599px) {
+	:root {
+		--type-page: 20px;
+		--type-view: 16px;
+		--bleed: 8px;
+	}
+}

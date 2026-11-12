@@ -1,0 +1,30 @@
+/* The app's own stylesheet: the class form of a width override. */
+.wide-popover {
+	--popover-width: 480px;
+}
+.wide-tooltip {
+	--tooltip-width: 360px;
+}
+.wide-toast {
+	--toast-width: 36rem;
+}
+.instant-spinner {
+	--spinner-delay: 0ms;
+}
+.page {
+	display: grid;
+	gap: var(--space-6);
+	padding: var(--space-6) var(--gutter);
+	align-content: start;
+}
+.row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-3);
+	align-items: start;
+}
+.photo {
+	display: block;
+	width: 320px;
+	max-width: 100%;
+}

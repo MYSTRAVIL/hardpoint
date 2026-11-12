@@ -1,0 +1,42 @@
+# Changelog
+
+Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
+
+## Unreleased
+
+- **Changed**: the source is public at [MYSTRAVIL/hardpoint](https://github.com/MYSTRAVIL/hardpoint), and `package.json` links it. Releases publish from GitHub Actions through npm trusted publishing, so each version from the next one on carries a provenance attestation that ties it to its commit and workflow run.
+
+## 0.2.0 (2026-11-11)
+
+- **Added**:
+  - `Meter`: a measurement inside a known range as separate segments, coloured by `warnAt` and `dangerAt` or by an app-set `tone`, with an optional `marker` and `detail` line.
+  - `Notice`: a persistent message in the page flow with an optional tone mark, title, text, up to two actions and a close button.
+  - `TextArea`: a multi-line text field that grows from `rows` to `maxRows` lines, then scrolls inside, with TextField's label, hint and error.
+  - `RadioGroup`: one choice from a set of rows, each with an optional hint and tag, named by a caps `label` or a `legend`, with a group `error`.
+  - `CheckboxGroup`: `legend` (a name set as written, instead of `label`), `error` and an item `tag`.
+  - `Checkbox`: `tag`. The whole row is now the target: a press on the hint, the tag or the gap counts as a press on the label.
+  - `ListDetail`: a list column beside the open item from `splitFrom` (`medium`, `expanded` by default, or `large`), one pane at a time below it, picked by a bindable `showDetail`.
+  - `ImageViewer`: one image full screen at every width over a Bits Dialog, with pinch zoom, pan, double-tap and wheel zoom, a Download button, a loading spinner, and Close, Escape or a swipe down at scale 1 to leave.
+  - `.hp-prose` in `base.css`, with `.hp-prose-code`, `.hp-prose-copy` and `.hp-prose-scroll`: styles for rendered markdown or sanitised HTML, at zero specificity. It covers headings, lists, task lists, quotes, code blocks with a copy button, tables that scroll inside their wrapper, and images.
+  - Grouped options: `group` on `SelectItem`, `ComboboxItem` and `NativeSelectOption`. Select and Combobox show a sticky heading per group, and NativeSelect renders `<optgroup>`.
+  - The token `--list-detail-width: 320px` (ListDetail's list column).
+- **Changed**:
+  - `--popover-width`, `--tooltip-width` and `--toast-width` can now be set from an app's class and stylesheet rule. Before, the component's own rule won over an app's one-class rule.
+  - The Dialog body sets `scroll-padding-block: var(--space-2)`, so a revealed caret stays 8 px clear of the action row.
+  - Combobox's default filter also matches an item's `group`, drops the heading of a group with no match, and scrolls the list to the top as you type.
+- **Checked**: every exported component, `toast()` and `Motion` run under `style-src 'self'` with no policy violation.
+
+## 0.1.0 (2026-11-11)
+
+The first public release. It needs Svelte 5.57 or newer.
+
+- **Components** (Svelte 5 on Bits UI):
+  - Actions and forms: Button, TextField, NativeSelect, Select, Combobox, Checkbox, CheckboxGroup, Switch.
+  - Overlays: Dialog (centred, bottom sheet or full screen), Popover, the Menu family, Tooltip with TooltipGroup, and Toaster with `toast()`.
+  - Navigation: AppShell (header, bottom bar or drawer, rail or sidebar), Tabs, Steps, Pagination.
+  - Data and display: Table, KeyValueList, Stat, Tag, Timeline, MediaFrame with MediaImage, Disclosure.
+  - Feedback: Progress, Spinner, Skeleton, LoadRegion, EmptyState, ErrorState.
+- **Motion** (`@mystravil/hardpoint/motion`): `<Motion tier>` and `useMotion()`, the overlay transitions `pop`, `sheet`, `fade` and `drawer`, and timing tokens for every duration. Quiet motion is the default; expressive effects run only inside `<Motion tier="expressive">` and never under reduced motion.
+- **CSS**, framework-free: `fonts.css` (Geist, Geist Mono and Geist Pixel Square with size-matched fallback faces), `tokens.css` and `base.css`.
+- **Themes**: dark by default; light through `data-theme="light"` on `<html>`, or `data-theme="system"` to follow the device.
+- **Phones**: 44 px touch targets on coarse pointers, 16 px inputs, bottom sheets on compact widths that stay above the on-screen keyboard, and safe-area insets.

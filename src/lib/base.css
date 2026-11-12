@@ -1,0 +1,625 @@
+/* Hardpoint base. Framework-free like tokens.css: element defaults use
+   :where() so any app rule overrides them, and helpers carry an hp- prefix.
+   Import after tokens.css. */
+
+/* ---- Document ---------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+/* hidden="until-found" (Disclosure's closed content) stays out of this rule:
+   the browser hides it with content-visibility so find in page can search it. */
+[hidden]:not([hidden='until-found' i]) {
+	display: none !important;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+	scrollbar-color: var(--border) transparent;
+}
+
+body {
+	margin: 0;
+	background: var(--canvas);
+	color: var(--text);
+	font-family: var(--sans);
+	font-size: var(--type-body);
+	font-weight: 400;
+	line-height: 1.5;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	text-rendering: optimizeLegibility;
+}
+
+:where(h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd) {
+	margin: 0;
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+	font-size: inherit;
+	font-weight: 500;
+}
+
+/* Line breaks. Reading text never ends on a lone word; headings and title
+   roles balance their lines (this rule comes second, so a title set on a
+   <p> balances). The longhand leaves the wrap mode alone, so a nowrap or
+   truncating parent still holds; browsers without it wrap as before. */
+:where(p, li, dd, blockquote, figcaption) {
+	text-wrap-style: pretty;
+}
+
+:where(h1, h2, h3, h4, h5, h6, .hp-page-title, .hp-section-title, .hp-display) {
+	text-wrap-style: balance;
+}
+
+/* Reading measure: a paragraph stops at --measure, about 70 characters. */
+:where(p) {
+	max-width: var(--measure);
+}
+
+/* Square corners everywhere: no cuts, no radii, also on native controls. */
+:where(button, input, select, textarea) {
+	font: inherit;
+	letter-spacing: inherit;
+	color: inherit;
+	border-radius: 0;
+}
+
+:where(button, a, input, select, textarea, summary, label) {
+	touch-action: manipulation;
+}
+
+:where(img, svg, video, canvas) {
+	display: block;
+	max-width: 100%;
+}
+
+:where(a) {
+	color: inherit;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+:where(code, kbd, samp, pre) {
+	font-family: var(--mono);
+}
+
+/* Inline code in running text moves to the next line whole, so a token
+   never splits at a hyphen or a space (--control-height, aria-label).
+   One wider than the line wraps inside its own box: at a hyphen or space
+   first, anywhere if it must, so it never overflows at 320px. Only direct
+   children of reading blocks: an atomic box in a truncating cell (a table
+   dd) would vanish whole into the ellipsis, and a link's underline does
+   not reach into one. */
+:where(p, li, blockquote, figcaption) > :where(code, kbd, samp) {
+	display: inline-block;
+	overflow-wrap: anywhere;
+}
+
+::selection {
+	background: var(--text);
+	color: var(--canvas);
+}
+
+/* ---- Focus ------------------------------------------------------------- */
+
+/* A 2px titanium contour 4px outside the control, square like everything
+   else. Selection never looks like this: selection is an edge marker and a
+   tint. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 4px;
+}
+
+/* For rows and items clipped by a scroll container: draw the contour inside. */
+.hp-focus-inset:focus-visible {
+	outline-offset: -2px;
+}
+
+/* ---- Type roles -------------------------------------------------------- */
+
+/* Tracked caps for short fixed labels: buttons, tabs, tags, column headers,
+   field labels, key-value labels. Never for headings, list items, messages or
+   user data. */
+.hp-label {
+	font-family: var(--sans);
+	font-size: var(--type-label);
+	font-weight: 500;
+	line-height: 16px;
+	letter-spacing: var(--label-tracking);
+	text-transform: var(--label-transform);
+}
+
+.hp-caption {
+	font-size: var(--type-caption);
+	line-height: 18px;
+}
+
+/* Dense UI on fine pointers. Phones keep 16px body text. */
+.hp-dense {
+	font-size: var(--type-body);
+	line-height: 24px;
+}
+
+@media (pointer: fine) {
+	.hp-dense {
+		font-size: var(--type-dense);
+		line-height: 20px;
+	}
+}
+
+.hp-body {
+	font-size: var(--type-body);
+	line-height: 24px;
+}
+
+.hp-section-title {
+	font-size: var(--type-section);
+	font-weight: 500;
+	line-height: 28px;
+	letter-spacing: -0.01em;
+}
+
+.hp-page-title {
+	font-size: var(--type-page);
+	font-weight: 500;
+	line-height: 1.25;
+	letter-spacing: -0.015em;
+}
+
+/* The view title in the shell header: a fixed string the app defines, so it
+   takes tracked caps (20px, 16px on compact). */
+.hp-view-title {
+	font-family: var(--sans);
+	font-size: var(--type-view);
+	font-weight: 500;
+	line-height: 24px;
+	letter-spacing: var(--label-tracking);
+	text-transform: var(--label-transform);
+}
+
+/* One per view, and only for the subject: an identifier (add .hp-mono) or a
+   key figure. Names a user wrote stay at the page-title size. */
+.hp-display {
+	font-size: var(--type-display);
+	font-weight: 500;
+	line-height: round(up, 1.1em, 1px);
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Identifiers, hashes, timestamps, code. */
+.hp-mono {
+	font-family: var(--mono);
+}
+
+/* Numbers in Geist that line up and do not change width as they tick. */
+.hp-num {
+	font-variant-numeric: tabular-nums;
+}
+
+/* Geist Pixel Square: the wordmark and at most one short fixed display line
+   per screen. Never labels, values, body text, page titles or user data.
+   Its module lands on whole pixels only if its top edge does too: do not
+   centre it in a box whose free space is odd. */
+.hp-pixel {
+	font-family: var(--pixel);
+	font-size: var(--type-pixel);
+	font-weight: 400;
+	line-height: var(--type-pixel-leading);
+	letter-spacing: 0;
+}
+
+.hp-pixel-lg {
+	font-family: var(--pixel);
+	font-size: var(--type-pixel-lg);
+	font-weight: 400;
+	line-height: var(--type-pixel-lg-leading);
+	letter-spacing: 0;
+}
+
+/* ---- Wells ------------------------------------------------------------- */
+
+/* The input box: a black well with a 3:1 boundary, never a filled block,
+   because a filled select reads as a button (BRIEF, visual rule 2). Text
+   is 16px at every width, or iOS zooms on focus. Native selects, rich
+   select triggers and text fields share it. line-height: normal makes the
+   line box the glyph box, which the well centres: a text field already
+   centres its text that way, and with the inherited 24px line a select or
+   a trigger set its text 1px higher at every pixel ratio. */
+.hp-well {
+	appearance: none;
+	box-sizing: border-box;
+	height: var(--control-height);
+	padding: 0 var(--space-3);
+	border: 1px solid var(--border-control);
+	border-radius: 0;
+	background-color: var(--canvas);
+	color: var(--text);
+	font-family: var(--sans);
+	font-size: var(--type-body);
+	line-height: normal;
+	text-overflow: ellipsis;
+	transition: background-color var(--dur-hover) var(--settle);
+}
+
+/* A chevron at the end of a select's well. Wrap the well in
+   <span class="hp-well-chevron">: the chevron is the wrapper's ::after,
+   because a <select> draws no pseudo-elements and a background image cannot
+   rotate. It turns to point up while the list is open, with the list's own
+   timing: --dur-pop opening, --dur-pop-exit closing. A rich select's trigger
+   says it is open with aria-expanded; a native select matches :open where
+   the browser supports it (Chromium 133+). The wrapper sets no width; the
+   component sizes it. */
+.hp-well-chevron {
+	position: relative;
+	display: block;
+}
+.hp-well-chevron > .hp-well {
+	padding-right: var(--space-10);
+}
+.hp-well-chevron::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	/* The well's 1px border, plus the inset a background image had. */
+	right: calc(var(--space-3) + 1px);
+	width: 16px;
+	height: 16px;
+	margin-top: -8px;
+	background-color: var(--muted);
+	mask: var(--select-chevron) center / 16px 16px no-repeat;
+	pointer-events: none;
+	transition: transform var(--dur-pop-exit) var(--settle);
+}
+.hp-well-chevron:has(> [aria-expanded='true'])::after {
+	transform: rotate(180deg);
+	transition-duration: var(--dur-pop);
+}
+/* Its own rule: a browser without :open drops only this one. */
+.hp-well-chevron:has(> :open)::after {
+	transform: rotate(180deg);
+	transition-duration: var(--dur-pop);
+}
+@media (prefers-reduced-motion: reduce) {
+	.hp-well-chevron::after {
+		transition: none;
+	}
+}
+@media (hover: hover) and (pointer: fine) {
+	.hp-well:hover:not(:disabled, [aria-disabled='true']) {
+		background-color: var(--surface-hover);
+	}
+}
+/* Disabled: muted text and the quieter --border, as on a disabled outlined
+   button. Chromium also sets a disabled <select> to 70% opacity; cancelled,
+   so a native and a rich select look the same when disabled. */
+.hp-well:disabled,
+.hp-well[aria-disabled='true'] {
+	border-color: var(--border);
+	color: var(--muted);
+	cursor: not-allowed;
+	opacity: 1;
+}
+
+/* ---- Expressive entrance ---------------------------------------------- */
+
+/* Stagger (motion rule 7): a component that renders its first items in the
+   expressive tier adds .hp-enter and sets --i to the item's index. Items
+   from the sixth on share the sixth's delay. Only on first appearance:
+   never on items added later by filtering, sorting or paging. */
+.hp-enter {
+	animation: hp-enter var(--dur-enter) var(--settle) both;
+	animation-delay: calc(min(var(--i, 0), 5) * var(--stagger-step));
+}
+
+@keyframes hp-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hp-enter {
+		animation: none;
+	}
+}
+
+/* ---- Prose ------------------------------------------------------------- */
+
+/* Rendered markdown or sanitised HTML that an app cannot scope styles into:
+   put .hp-prose on its container. Every rule is :where(.hp-prose) …, so it
+   has no specificity and any app rule wins. Sizes in em follow the font
+   size the app sets on the container (16px on 24px lines by default); the
+   two heading sizes are the type tokens. Blocks do not stop at --measure:
+   the container's width decides, so give it a readable one.
+
+   Gaps: 1em between blocks, 0.5em between a heading and what it
+   introduces, 0.5em between blocks inside a list item and 0.25em between
+   items, so each gap between blocks is at least twice the gap inside one.
+
+   The ink is --text, with --muted for markers, quotes and the small
+   headings. Nothing here is a hue. */
+
+:where(.hp-prose) {
+	/* In a flex or grid column the box may shrink below a long word. */
+	min-width: 0;
+	font-family: var(--sans);
+	font-size: var(--type-body);
+	line-height: 1.5;
+	/* A long address or word breaks inside the column; tables and code
+	   blocks set their own rules below. */
+	overflow-wrap: anywhere;
+}
+
+/* Block gaps: space above each block, none below, so the first and last
+   child need no special case and a margin never doubles. */
+:where(.hp-prose) :where(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6, .hp-prose-code, .hp-prose-scroll) {
+	margin-block: 1em 0;
+	margin-inline: 0;
+}
+:where(.hp-prose) :where(p) {
+	max-width: none;
+}
+
+/* Headings as written, never caps. h1 and h2 take the page-title and
+   section-title roles; h3 to h6 stay at body size and step down in weight,
+   then in ink. More space above a heading than below it groups it with what
+   follows. */
+:where(.hp-prose) :where(h1) {
+	margin-block-start: 1.5em;
+	font-size: var(--type-page);
+	font-weight: 500;
+	line-height: 1.25;
+	line-height: round(up, 1.25em, 4px);
+	letter-spacing: -0.015em;
+}
+:where(.hp-prose) :where(h2) {
+	margin-block-start: 1.6em;
+	font-size: var(--type-section);
+	font-weight: 500;
+	line-height: 1.25;
+	line-height: round(up, 1.25em, 4px);
+	letter-spacing: -0.01em;
+}
+:where(.hp-prose) :where(h3, h4, h5, h6) {
+	margin-block-start: 1.5em;
+	font-size: 1em;
+	font-weight: 500;
+}
+:where(.hp-prose) :where(h3) {
+	font-weight: 600;
+}
+:where(.hp-prose) :where(h5, h6) {
+	color: var(--muted);
+}
+
+:where(.hp-prose) :where(strong, b) {
+	font-weight: 600;
+}
+:where(.hp-prose) :where(del, s) {
+	text-decoration-line: line-through;
+	text-decoration-thickness: 1px;
+}
+
+/* Lists: square markers on bulleted lists (square corners everywhere),
+   tabular figures on numbered ones, both in --muted. The markers hang
+   outside the text, so the text edge lines up with the paragraphs. A
+   start number comes from the list's own attribute. */
+:where(.hp-prose) :where(ul, ol) {
+	padding-inline-start: 1.5em;
+}
+:where(.hp-prose) :where(ol) {
+	padding-inline-start: 2em;
+	list-style-type: decimal;
+}
+:where(.hp-prose) :where(ul) {
+	list-style-type: square;
+}
+:where(.hp-prose li)::marker {
+	color: var(--muted);
+}
+:where(.hp-prose ol > li)::marker {
+	font-variant-numeric: tabular-nums;
+}
+/* Tight inside a list: items 0.25em apart, a nested list 0.25em under its
+   item's text, other blocks in an item 0.5em apart. */
+:where(.hp-prose li) + :where(li) {
+	margin-block-start: 0.25em;
+}
+:where(.hp-prose li > * + *) {
+	margin-block-start: 0.5em;
+}
+
+/* Task lists. A checkbox in an item is drawn as Hardpoint's checkbox box
+   in its disabled form: a black box with the quiet --border edge and a
+   --muted mark, and it takes the marker's place. It is out of the flow,
+   so the item's text keeps the list's text edge. */
+:where(.hp-prose li:has(> input[type='checkbox'], > p:first-child > input[type='checkbox'])) {
+	position: relative;
+	list-style: none;
+}
+:where(.hp-prose li input[type='checkbox']) {
+	appearance: none;
+	position: absolute;
+	inset-block-start: calc((1lh - 1.25em) / 2);
+	inset-inline-start: -1.5em;
+	display: grid;
+	place-items: center;
+	box-sizing: border-box;
+	width: 1.25em;
+	height: 1.25em;
+	margin: 0;
+	padding: 0;
+	border: 1px solid var(--border);
+	border-radius: 0;
+	background: var(--canvas);
+	color: var(--muted);
+}
+/* The mark is the box's 12px check as a clipped square, so it takes the
+   text colour and needs no image. */
+:where(.hp-prose li input[type='checkbox']:checked)::before {
+	content: '';
+	width: 0.75em;
+	height: 0.75em;
+	background: currentColor;
+	clip-path: polygon(6.6% 60.1%, 37.5% 91%, 93.4% 35.1%, 81.6% 23.3%, 37.5% 67.4%, 18.4% 48.3%);
+}
+
+/* Quotes: a 3px edge in --border, since titanium marks selection, and the
+   text in --muted. */
+:where(.hp-prose) :where(blockquote) {
+	padding-inline-start: 0.75em;
+	border-inline-start: 3px solid var(--border);
+	color: var(--muted);
+}
+
+:where(.hp-prose) :where(hr) {
+	height: 0;
+	margin-block: 1.5em;
+	margin-inline: 0;
+	border: 0;
+	border-block-start: 1px solid var(--border);
+}
+
+/* A markdown image sits in a paragraph, which has its own gap; one that
+   sits directly in the container gets the block gap too. */
+:where(.hp-prose) :where(img) {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+:where(.hp-prose) > :where(img) {
+	margin-block-start: 1em;
+}
+
+/* Code. Inline code is a little smaller than the text around it, because
+   Geist Mono looks larger at the same size. A block is Geist Mono on a 20px
+   rhythm, never wraps and scrolls sideways inside its own box. It has a
+   1px --border hairline instead of a fill: --surface-hover cannot be seen
+   on black, --surface-band is heavy under a long listing, and the line
+   reads in both themes and marks where the scrolling area ends. */
+:where(.hp-prose) :where(code, kbd, samp) {
+	font-size: 0.875em;
+}
+:where(.hp-prose) :where(pre) {
+	padding: var(--space-3);
+	overflow-x: auto;
+	overscroll-behavior-x: contain;
+	border: 1px solid var(--border);
+	font-size: 0.875em;
+	line-height: calc(20 / 14);
+	white-space: pre;
+	overflow-wrap: normal;
+	tab-size: 4;
+}
+:where(.hp-prose pre) :where(code, kbd, samp) {
+	font-size: inherit;
+}
+
+/* A code block with a copy button: wrap the pre and the app's Button
+   (class hp-prose-copy) in .hp-prose-code. The wrapper draws the hairline and
+   the button sits at the top end, outside the text, so a renderer that
+   replaces the pre keeps it. The pre leaves a column for the button, so
+   text, which scrolls sideways under any overlay, never runs beneath it. */
+:where(.hp-prose .hp-prose-code) {
+	position: relative;
+	border: 1px solid var(--border);
+}
+:where(.hp-prose .hp-prose-code > pre) {
+	margin: 0;
+	margin-inline-end: calc(var(--control-height) + var(--space-2));
+	border: 0;
+}
+:where(.hp-prose .hp-prose-copy) {
+	position: absolute;
+	inset-block-start: var(--space-1);
+	inset-inline-end: var(--space-1);
+}
+
+/* Tables. The header band is --surface-band with cells as written, never
+   caps. Cells are Geist, not Geist Mono: they hold words. Text that wraps
+   makes rows of several lines, and without a line between rows the eye
+   cannot tell where one ends, so every row has a 1px --border divider (the
+   table's ruled form), and no zebra. A table is as wide as its content or
+   its box, whichever is wider; wrap each in .hp-prose-scroll and a table
+   wider than the column scrolls sideways inside it. Alignment comes from
+   the cell's align attribute or its own text-align. */
+:where(.hp-prose .hp-prose-scroll) {
+	max-width: 100%;
+	overflow-x: auto;
+	overscroll-behavior-x: contain;
+}
+:where(.hp-prose) :where(table) {
+	min-width: 100%;
+	border-collapse: collapse;
+	font-variant-numeric: tabular-nums;
+}
+:where(.hp-prose) :where(th, td) {
+	padding: var(--space-2) var(--space-3);
+	border-block-end: 1px solid var(--border);
+	overflow-wrap: normal;
+	text-align: start;
+	vertical-align: top;
+}
+:where(.hp-prose th) {
+	border-block-end: 0;
+	background: var(--surface-band);
+	font-weight: 500;
+}
+/* The cell's align attribute: the browser maps it to text-align at the
+   lowest priority, so the start alignment above would hide it. */
+:where(.hp-prose :is(th, td)[align='left']) {
+	text-align: left;
+}
+:where(.hp-prose :is(th, td)[align='center']) {
+	text-align: center;
+}
+:where(.hp-prose :is(th, td)[align='right']) {
+	text-align: right;
+}
+
+@media (pointer: fine) {
+	:where(.hp-prose pre, .hp-prose .hp-prose-scroll) {
+		scrollbar-width: thin;
+	}
+}
+
+/* Gaps that depend on neighbours come last, so they win over the block gap:
+   a heading keeps 0.5em from what it introduces, and the first and last
+   child of any box touch its edges. */
+:where(.hp-prose) :where(h1, h2, h3, h4, h5, h6) + * {
+	margin-block-start: 0.5em;
+}
+:where(.hp-prose :first-child) {
+	margin-block-start: 0;
+}
+:where(.hp-prose :last-child) {
+	margin-block-end: 0;
+}
+
+/* A nested list follows its item's text, which is not an element, so it is
+   that item's first child: it takes its 0.25em back after the rule above. */
+:where(.hp-prose li > :is(ul, ol)) {
+	margin-block-start: 0.25em;
+}
+
+/* ---- Utilities --------------------------------------------------------- */
+
+/* Hidden from sight, kept in the accessibility tree. */
+.hp-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}

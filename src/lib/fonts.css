@@ -1,0 +1,71 @@
+/* Hardpoint faces. Import once, before tokens.css. An app that already serves
+   Geist (omp-remote) can skip this file and keep its own @font-face rules. */
+
+/* Geist: UI, reading text and numbers. Latin subset, variable 100–900. */
+@font-face {
+	font-family: 'Geist';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url('./fonts/geist-latin-variable.woff2') format('woff2');
+}
+
+/* Geist Mono: identifiers, hashes, timestamps and code. */
+@font-face {
+	font-family: 'Geist Mono';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+	src: url('./fonts/geist-mono-latin-variable.woff2') format('woff2');
+}
+
+/* Geist Pixel Square: the wordmark, one display line per screen and the
+   spinner. Single weight. Crisp only at multiples of 26.32px.
+   On Windows, Chrome spreads every vertical edge over two pixels in all
+   modes (DirectWrite; no CSS switch changes it); horizontal edges stay
+   sharp. macOS, iOS and Android are unverified: check them on a device. */
+@font-face {
+	font-family: 'Geist Pixel Square';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('./fonts/geist-pixel-square.woff2') format('woff2');
+}
+
+/* Fallbacks sized to Geist and Geist Mono, so text keeps its width and
+   baseline when the real face arrives (font-display: swap). size-adjust is
+   the real face's width over the local font's, measured in Chromium over
+   every Geist text node of 13 docs pages at 1440 and 390 px wide
+   (2026-11-11). One value per font: a separate weight-500 Arial face
+   measured worse, because at 500 caps want 95.6% and lowercase 105.9%.
+   The overrides give Geist's ascent (1005) and descent (295) at that size.
+   Characters outside Geist's Latin subset also come from these faces. */
+@font-face {
+	font-family: 'Geist Fallback Arial';
+	src: local('Arial'), local('ArialMT'), local('Liberation Sans'), local('Arimo');
+	size-adjust: 102.8%;
+	ascent-override: 97.76%;
+	descent-override: 28.7%;
+	line-gap-override: 0%;
+}
+
+/* Android has no Arial; Roboto is its sans-serif. Unverified on a device. */
+@font-face {
+	font-family: 'Geist Fallback Roboto';
+	src: local('Roboto'), local('Roboto Regular'), local('Roboto-Regular');
+	size-adjust: 103.1%;
+	ascent-override: 97.48%;
+	descent-override: 28.61%;
+	line-gap-override: 0%;
+}
+
+/* Consolas is 0.55em wide; Geist Mono, Menlo, Courier New and Android's
+   monospace are 0.6em, so only Consolas needs a face. */
+@font-face {
+	font-family: 'Geist Mono Fallback';
+	src: local('Consolas');
+	size-adjust: 109.13%;
+	ascent-override: 92.09%;
+	descent-override: 27.03%;
+	line-gap-override: 0%;
+}
