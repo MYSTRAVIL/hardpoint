@@ -1,6 +1,6 @@
 {
 	"name": "@mystravil/hardpoint",
-	"version": "0.2.1",
+	"version": "0.3.0",
 	"description": "Hardpoint: a Svelte 5 design system on Bits UI. AMOLED black, titanium ink, Geist, square solid blocks, banded mono tables, opt-in expressive motion, dark and light themes.",
 	"license": "MIT",
 	"author": "MYSTRAVIL",

@@ -23,6 +23,15 @@
 	gap: var(--space-3);
 	align-items: start;
 }
+.toolbar {
+	display: flex;
+	gap: var(--space-2);
+	align-items: center;
+}
+.toolbar-field {
+	flex: 1;
+	min-width: 0;
+}
 .photo {
 	display: block;
 	width: 320px;

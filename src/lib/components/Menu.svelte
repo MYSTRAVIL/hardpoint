@@ -37,6 +37,7 @@
 </script>
 
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { DropdownMenu } from 'bits-ui';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { pop } from '../motion/index.js';
@@ -99,6 +100,20 @@
 	let sheetNode = $state<HTMLElement | null>(null);
 	let triggerNode = $state<HTMLElement | null>(null);
 
+	// Bits UI's content layers (the portal, positioning, focus and dismiss
+	// handling) cost about 0.3 ms a menu, and an app may draw several closed
+	// menus per view, so they mount on the first open, not with the
+	// trigger. Until then only the trigger and its ARIA exist. They mount
+	// closed, and Bits UI sees the menu open one update later, so the first
+	// entrance plays as every later one does. They stay mounted after that.
+	let layers = $state(false);
+	let ready = $state(false);
+	$effect(() => {
+		if (!open || layers) return;
+		layers = true;
+		tick().then(() => (ready = true));
+	});
+
 	function close() {
 		open = false;
 	}
@@ -150,7 +165,7 @@
 	it and return focus to the trigger. From 600px a press outside closes it
 	and leaves focus where the press put it; Tab closes it and moves on.
 -->
-<DropdownMenu.Root bind:open>
+<DropdownMenu.Root bind:open={() => open && ready, (value) => (open = value)}>
 	<DropdownMenu.Trigger
 		bind:ref={triggerNode}
 		onkeydowncapture={() => (keyboard = true)}
@@ -161,53 +176,55 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 
-	<DropdownMenu.Portal>
-		{#if wide.current}
-			<DropdownMenu.Content forceMount bind:ref {...placement} {onInteractOutside} {onCloseAutoFocus} {...rest}>
-				{#snippet child({ wrapperProps, props, open: shown })}
-					{#if shown}
-						<div {...wrapperProps}>
+	{#if layers}
+		<DropdownMenu.Portal>
+			{#if wide.current}
+				<DropdownMenu.Content forceMount bind:ref {...placement} {onInteractOutside} {onCloseAutoFocus} {...rest}>
+					{#snippet child({ wrapperProps, props, open: shown })}
+						{#if shown}
+							<div {...wrapperProps}>
+								<div
+									{...props}
+									class={['hp-menu', className]}
+									data-form="popover"
+									data-keyboard={keyboard || undefined}
+									aria-label={label}
+									transition:pop
+									{@attach trackInput}
+								>
+									{@render children()}
+								</div>
+							</div>
+						{/if}
+					{/snippet}
+				</DropdownMenu.Content>
+			{:else}
+				<DropdownMenu.ContentStatic
+					forceMount
+					bind:ref
+					{...rest}
+					preventScroll
+					onInteractOutside={insideSheet}
+					onCloseAutoFocus={returnFocus}
+				>
+					{#snippet child({ props, open: shown })}
+						<Sheet open={shown} layer="popover" title={label} {closeLabel} onclose={close} bind:ref={sheetNode}>
 							<div
 								{...props}
 								class={['hp-menu', className]}
-								data-form="popover"
+								data-form="sheet"
 								data-keyboard={keyboard || undefined}
 								aria-label={label}
-								transition:pop
 								{@attach trackInput}
 							>
 								{@render children()}
 							</div>
-						</div>
-					{/if}
-				{/snippet}
-			</DropdownMenu.Content>
-		{:else}
-			<DropdownMenu.ContentStatic
-				forceMount
-				bind:ref
-				{...rest}
-				preventScroll
-				onInteractOutside={insideSheet}
-				onCloseAutoFocus={returnFocus}
-			>
-				{#snippet child({ props, open: shown })}
-					<Sheet open={shown} layer="popover" title={label} {closeLabel} onclose={close} bind:ref={sheetNode}>
-						<div
-							{...props}
-							class={['hp-menu', className]}
-							data-form="sheet"
-							data-keyboard={keyboard || undefined}
-							aria-label={label}
-							{@attach trackInput}
-						>
-							{@render children()}
-						</div>
-					</Sheet>
-				{/snippet}
-			</DropdownMenu.ContentStatic>
-		{/if}
-	</DropdownMenu.Portal>
+						</Sheet>
+					{/snippet}
+				</DropdownMenu.ContentStatic>
+			{/if}
+		</DropdownMenu.Portal>
+	{/if}
 </DropdownMenu.Root>
 
 <style>

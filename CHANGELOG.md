@@ -2,6 +2,15 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
+## 0.3.0 (2026-11-12)
+
+- **Added**:
+  - `TextField` with `type="search"` shows its own clear button at the end of the well while the field holds text, and hides the browser's cancel button, which Chrome on Android drew in bright blue. The button is 44 px on coarse pointers. A press empties the field, fires `input` (so `bind:value` and `oninput` see it) and leaves focus in the field; Tab reaches it, and Enter or Space clears. `clearLabel` names it (default `Clear`).
+  - `TextField` `labelHidden`: the label stays the field's accessible name but is hidden from sight, for a search in a toolbar. The well keeps its look and 16 px text.
+- **Changed**:
+  - `Menu` mounts Bits UI's portal and content on the first open instead of with the trigger, so a closed menu costs about a fifth of what it did (66 µs against 322 µs in Chromium, with its Button trigger). The trigger keeps `aria-haspopup`, `aria-expanded` and, while open, `aria-controls`; the first open plays the entrance as before.
+  - `Button` renders a plain `<button>`, or an `<a>` with `href`, without Bits UI's dynamic element, and mounts in less than half the time (10 µs against 23 µs). A disabled link still has no `href`, `role="link"`, `aria-disabled="true"` and `tabindex="-1"`. The element no longer carries Bits UI's `data-button-root`, `tabindex="0"` or `aria-disabled="false"`. `ButtonProps` is Hardpoint's own type with the same shape.
+
 ## 0.2.1 (2026-11-12)
 
 - **Changed**: the source is public at [MYSTRAVIL/hardpoint](https://github.com/MYSTRAVIL/hardpoint), and `package.json` links it. Releases publish from GitHub Actions through npm trusted publishing, so from this version on each release carries a provenance attestation that ties it to its commit and workflow run. The components did not change.

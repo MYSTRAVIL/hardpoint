@@ -9,7 +9,10 @@
 
 	/** Attributes and handlers not listed here go to the `<input>`. */
 	export type TextFieldProps = Omit<HTMLInputAttributes, 'type' | 'value' | 'children'> & {
-		/** The caps field label above the well. Required: a placeholder is never the only label. */
+		/**
+		 * The caps field label above the well. Required, also with
+		 * `labelHidden`: a placeholder is never the only label.
+		 */
 		label: string;
 		/** The text. Bindable. */
 		value?: string;
@@ -28,6 +31,18 @@
 		 * The hint and the error stay under the well.
 		 */
 		labelBeside?: boolean | TextFieldBreakpoint;
+		/**
+		 * Hides the label from sight; it stays the field's accessible name.
+		 * For a field whose purpose its place makes plain, such as a search in
+		 * a toolbar. The well keeps its look and its 16 px text. It overrides
+		 * `labelBeside`.
+		 */
+		labelHidden?: boolean;
+		/**
+		 * The accessible name of the clear button that `type="search"` shows
+		 * inside the well while it holds text.
+		 */
+		clearLabel?: string;
 		/** The `<input>`, for example to focus the first error on submit. */
 		ref?: HTMLInputElement | null;
 	};
@@ -47,8 +62,11 @@
 		hint,
 		error,
 		labelBeside = false,
+		labelHidden = false,
+		clearLabel = 'Clear',
 		id = uid,
 		disabled,
+		readonly,
 		ref = $bindable(null),
 		class: className,
 		'aria-describedby': describedBy,
@@ -82,37 +100,87 @@
 			if (message) fadeIn(message, '--dur-message');
 		});
 	});
+
+	// ---- Search: the clear button --------------------------------------
+
+	// The browser's own cancel button is hidden (CSS below) and this one
+	// takes its place, so every engine draws the same control. It writes
+	// the empty value and fires a bubbling `input`, as typing would, so
+	// `bind:value` and the app's `oninput` both hear it, then focus returns
+	// to the field. A mouse or a touch press never takes focus from the
+	// field, so an on-screen keyboard stays up; keys reach the button by Tab.
+	const clearable = $derived(type === 'search');
+	const showClear = $derived(clearable && !!value && !disabled && !readonly);
+
+	function clear() {
+		if (!ref) return;
+		ref.value = '';
+		ref.dispatchEvent(new Event('input', { bubbles: true }));
+		ref.focus();
+	}
 </script>
 
 <!--
 	A single-line text input in the black well, with a plain caps label above
 	it (Bits UI Label), an optional hint and an inline error below. Extra
 	attributes (`name`, `inputmode`, `autocomplete`, `enterkeyhint`,
-	`required`), handlers and `class` go to the <input>.
+	`required`), handlers and `class` go to the <input>. With
+	`type="search"` the well holds a clear button at its end while it has
+	text.
 -->
 <div
 	bind:this={root}
 	class="hp-text-field"
 	data-invalid={error ? '' : undefined}
 	data-disabled={disabled ? '' : undefined}
-	data-label-beside={labelBeside === true ? 'always' : labelBeside || undefined}
+	data-label-beside={labelHidden ? undefined : labelBeside === true ? 'always' : labelBeside || undefined}
 >
 	<Label.Root for={id}>
 		{#snippet child({ props })}
-			<label {...props} class="hp-label">{label}</label>
+			<label {...props} class={['hp-label', labelHidden && 'hp-visually-hidden']}>{label}</label>
 		{/snippet}
 	</Label.Root>
-	<input
-		{...rest}
-		bind:this={ref}
-		bind:value
-		{id}
-		{type}
-		{disabled}
-		class={['hp-well', className]}
-		aria-describedby={describedByIds}
-		aria-invalid={error ? true : ariaInvalid}
-	/>
+	{#snippet well()}
+		<input
+			{...rest}
+			bind:this={ref}
+			bind:value
+			{id}
+			{type}
+			{disabled}
+			{readonly}
+			class={['hp-well', className]}
+			aria-describedby={describedByIds}
+			aria-invalid={error ? true : ariaInvalid}
+		/>
+	{/snippet}
+	{#if clearable}
+		<div class="search">
+			{@render well()}
+			{#if showClear}
+				<button
+					type="button"
+					class="clear hp-focus-inset"
+					aria-label={clearLabel}
+					onmousedown={(e) => e.preventDefault()}
+					onclick={clear}
+				>
+					<svg
+						viewBox="0 0 16 16"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="1.5"
+						stroke-linecap="square"
+						aria-hidden="true"
+					>
+						<path d="M4 4l8 8M12 4l-8 8" />
+					</svg>
+				</button>
+			{/if}
+		</div>
+	{:else}
+		{@render well()}
+	{/if}
 	{#if hint}
 		<p class="hint hp-caption" id={hintId}>{hint}</p>
 	{/if}
@@ -148,6 +216,72 @@
 		opacity: 1;
 	}
 
+	/* ---- Search: the clear button replaces the browser's own --------- */
+
+	/* WebKit and Blink draw a cancel button in a search input whatever its
+	   appearance; Chrome on Android draws it bright blue. */
+	input::-webkit-search-cancel-button,
+	input::-webkit-search-decoration {
+		appearance: none;
+		display: none;
+	}
+	.search {
+		position: relative;
+		min-width: 0;
+	}
+	/* The text stops short of the button's square, whether it shows or not,
+	   so the text never moves when it appears. */
+	.search > input {
+		padding-right: var(--control-height);
+	}
+	/* A --control-height square over the end of the well: 36px on fine
+	   pointers, 44px on coarse. Its transparent border keeps a press fill
+	   inside the well's edge. The cross is smaller than a close button's,
+	   in --muted like the placeholder, so it reads as part of the well. */
+	.clear {
+		position: absolute;
+		top: 0;
+		right: 0;
+		display: grid;
+		place-items: center;
+		box-sizing: border-box;
+		width: var(--control-height);
+		height: var(--control-height);
+		padding: 0;
+		border: 1px solid transparent;
+		background: transparent;
+		background-clip: padding-box;
+		color: var(--muted);
+		cursor: pointer;
+		-webkit-tap-highlight-color: transparent;
+	}
+	.clear svg {
+		display: block;
+		width: var(--space-4);
+		height: var(--space-4);
+	}
+	.clear:active {
+		background-color: var(--surface-raised);
+		color: var(--text);
+	}
+	@media (hover: hover) and (pointer: fine) {
+		.clear {
+			transition:
+				background-color var(--dur-hover) var(--settle),
+				color var(--dur-hover) var(--settle);
+		}
+		.clear:hover {
+			color: var(--text);
+		}
+		.clear:active {
+			transition-duration: var(--dur-press);
+		}
+		/* The button is part of the well, so the well keeps its hover fill. */
+		.search:has(> .clear:hover) > input {
+			background-color: var(--surface-hover);
+		}
+	}
+
 	/* Invalid: the boundary turns --danger (5.9:1 on black), never alone:
 	   the icon and the message say what is wrong. Keyed on the root's
 	   data-invalid, set by `error`, so an aria-invalid the app passes
@@ -178,7 +312,9 @@
 	/* The first message starts 8px under the well, clear of the focus
 	   contour (2px, drawn 4px outside the well). */
 	input + .hint,
-	input + .error {
+	input + .error,
+	.search + .hint,
+	.search + .error {
 		margin-top: var(--space-1);
 	}
 	/* One line box high, so the icon centres on the first line of the
@@ -205,6 +341,7 @@
 		white-space: nowrap;
 	}
 	[data-label-beside='always'] input,
+	[data-label-beside='always'] .search,
 	[data-label-beside='always'] p {
 		grid-column: 2;
 	}
@@ -219,6 +356,7 @@
 			white-space: nowrap;
 		}
 		[data-label-beside='medium'] input,
+		[data-label-beside='medium'] .search,
 		[data-label-beside='medium'] p {
 			grid-column: 2;
 		}
@@ -234,6 +372,7 @@
 			white-space: nowrap;
 		}
 		[data-label-beside='expanded'] input,
+		[data-label-beside='expanded'] .search,
 		[data-label-beside='expanded'] p {
 			grid-column: 2;
 		}
@@ -249,6 +388,7 @@
 			white-space: nowrap;
 		}
 		[data-label-beside='large'] input,
+		[data-label-beside='large'] .search,
 		[data-label-beside='large'] p {
 			grid-column: 2;
 		}

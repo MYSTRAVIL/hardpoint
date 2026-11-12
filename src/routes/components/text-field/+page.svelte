@@ -40,6 +40,24 @@
 
 	let find = $state('');
 	let seats = $state('12');
+
+	// The find bar: the count and the current match follow the query.
+	const tasks = [
+		'Rotate the deploy keys',
+		'Review the release notes',
+		'Deploy the web app',
+		'Write the deploy checklist',
+		'Archive old releases'
+	];
+	let query = $state('');
+	let current = $state(0);
+	const hits = $derived.by(() => {
+		const q = query.trim().toLowerCase();
+		return q ? tasks.flatMap((task, i) => (task.toLowerCase().includes(q) ? [i] : [])) : [];
+	});
+	function step(by: number) {
+		if (hits.length) current = (current + by + hits.length) % hits.length;
+	}
 </script>
 
 <svelte:head>
@@ -85,6 +103,12 @@
 				keyboard; for numbers use <code>inputmode="numeric"</code>. These, <code>name</code>,
 				<code>required</code>, event handlers and <code>class</code> go to the
 				<code>&lt;input&gt;</code>. <code>bind:value</code> holds the text.
+			</li>
+			<li>
+				<strong>Search.</strong> With <code>type="search"</code> a clear button replaces the
+				browser's own while the field holds text; <code>clearLabel</code> names it (default
+				<code>Clear</code>). It empties the field, fires <code>input</code> and leaves focus in the
+				field. In a toolbar, <code>labelHidden</code> keeps the label as the field's name but hides it.
 			</li>
 		</ul>
 	</section>
@@ -202,6 +226,52 @@
 		</p>
 	</section>
 
+	<section aria-labelledby="search">
+		<h2 id="search" class="hp-section-title">Search in a toolbar</h2>
+		<p class="lede">
+			A find bar: the field, a count and two icon buttons in one row. <code>labelHidden</code> hides the
+			label, which stays the field's name. Type to show the clear button; press it, or reach it with
+			<kbd>Tab</kbd>, and focus stays in the field.
+		</p>
+		<div class="find-bar" role="search">
+			<div class="find-field">
+				<TextField
+					type="search"
+					label="Find in tasks"
+					labelHidden
+					placeholder="Find in tasks"
+					autocomplete="off"
+					enterkeyhint="search"
+					bind:value={query}
+					oninput={() => (current = 0)}
+					onkeydown={(event) => {
+						if (event.key !== 'Enter' || event.isComposing) return;
+						event.preventDefault();
+						step(event.shiftKey ? -1 : 1);
+					}}
+				/>
+			</div>
+			<span class="find-count" role="status">
+				{query.trim() ? (hits.length ? `${current + 1} of ${hits.length}` : 'No matches') : ''}
+			</span>
+			<Button variant="tertiary" icon aria-label="Previous match" disabled={!hits.length} onclick={() => step(-1)}>
+				<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+					<path d="M3 10l5-5 5 5" />
+				</svg>
+			</Button>
+			<Button variant="tertiary" icon aria-label="Next match" disabled={!hits.length} onclick={() => step(1)}>
+				<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+					<path d="M3 6l5 5 5-5" />
+				</svg>
+			</Button>
+		</div>
+		<ul class="find-list">
+			{#each tasks as task, i (task)}
+				<li aria-current={hits[current] === i ? 'true' : undefined}>{task}</li>
+			{/each}
+		</ul>
+	</section>
+
 	<section aria-labelledby="states">
 		<h2 id="states" class="hp-section-title">States</h2>
 		<p class="lede">
@@ -286,6 +356,34 @@
 		.filters {
 			max-width: 360px;
 		}
+	}
+
+	.find-bar {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		max-width: 424px;
+	}
+	.find-field {
+		flex: 1;
+		min-width: 0;
+	}
+	.find-count {
+		color: var(--muted);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.find-list {
+		max-width: 424px;
+		margin: var(--space-3) 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.find-list li {
+		padding: var(--space-1) var(--space-3);
+	}
+	.find-list li[aria-current] {
+		box-shadow: inset 2px 0 var(--accent);
 	}
 
 	.value {

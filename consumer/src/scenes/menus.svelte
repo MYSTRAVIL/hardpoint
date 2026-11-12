@@ -3,6 +3,7 @@
 	let hidden = $state(false);
 	let sizes = $state(true);
 	let sort = $state('name');
+	let more = $state(false);
 </script>
 
 <main class="page">
@@ -23,4 +24,16 @@
 		<MenuSeparator />
 		<MenuItem variant="danger">Delete</MenuItem>
 	</Menu>
+	<div class="row">
+		<Button onclick={() => (more = true)}>Mount three menus</Button>
+		{#if more}
+			{#each [1, 2, 3] as i (i)}
+				<Menu label={`More ${i}`}>
+					{#snippet trigger({ props })}<Button {...props}>More {i}</Button>{/snippet}
+					<MenuItem>First</MenuItem>
+					<MenuItem>Second</MenuItem>
+				</Menu>
+			{/each}
+		{/if}
+	</div>
 </main>

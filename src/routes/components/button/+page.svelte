@@ -51,7 +51,10 @@
 				<code>href</code> and gets <code>aria-disabled="true"</code>. Say why in nearby text, because a
 				disabled control cannot explain itself.
 			</li>
-			<li>Extra attributes, event handlers and <code>class</code> pass through to the element.</li>
+			<li>
+				Extra attributes, event handlers and <code>class</code> pass through to the element. Button
+				renders that one element with no component layer around it, so a list may draw one per row.
+			</li>
 		</ul>
 	</section>
 

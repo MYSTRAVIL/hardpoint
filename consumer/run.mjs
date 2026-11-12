@@ -40,6 +40,48 @@ const THEMES = ['dark', 'light'];
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Counts animation frames over the next 1.5 s in which an open menu or its
+// sheet animates: proof that an entrance played.
+const recordEntrance = (page) =>
+	page.evaluate(() => {
+		window.__entrance = 0;
+		const start = performance.now();
+		const frame = () => {
+			const moving = document
+				.getAnimations()
+				.some((a) => a.effect?.target instanceof Element && a.effect.target.closest('[role=menu], .hp-sheet'));
+			if (moving) window.__entrance++;
+			if (performance.now() - start < 1500) requestAnimationFrame(frame);
+		};
+		requestAnimationFrame(frame);
+	});
+
+// The computed display of the browser's own cancel button inside the search
+// input `selector` matches. It sits in the input's user-agent shadow root,
+// which only the DevTools protocol reaches.
+async function searchCancelDisplay(page, selector) {
+	const cdp = await page.context().newCDPSession(page);
+	try {
+		await cdp.send('DOM.enable');
+		await cdp.send('CSS.enable');
+		const { root } = await cdp.send('DOM.getDocument', { depth: -1, pierce: true });
+		const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+		const kids = (n) => [...(n.children ?? []), ...(n.shadowRoots ?? [])];
+		const find = (n, test) => (test(n) ? n : kids(n).reduce((hit, k) => hit ?? find(k, test), undefined));
+		const input = find(root, (n) => n.nodeId === nodeId);
+		const cancel = find(input, (n) => {
+			const a = n.attributes ?? [];
+			for (let i = 0; i < a.length; i += 2) if (a[i] === 'pseudo' && a[i + 1] === '-webkit-search-cancel-button') return true;
+			return false;
+		});
+		if (!cancel) return 'absent';
+		const { computedStyle } = await cdp.send('CSS.getComputedStyleForNode', { nodeId: cancel.nodeId });
+		return computedStyle.find((s) => s.name === 'display')?.value;
+	} finally {
+		await cdp.detach();
+	}
+}
+
 const drivers = {
 	async dialogs(c) {
 		const { page } = c;
@@ -136,6 +178,52 @@ const drivers = {
 
 	async menus(c) {
 		const { page } = c;
+		const triggerAria = (name) =>
+			page
+				.getByRole('button', { name, exact: true })
+				.evaluate((n) => ['aria-haspopup', 'aria-expanded', 'aria-controls'].map((a) => n.getAttribute(a)));
+		await c.step('closed menus mount no layers; trigger ARIA', async () => {
+			const aria = await triggerAria('View');
+			if (aria[0] !== 'menu' || aria[1] !== 'false' || aria[2] !== null) {
+				throw new Error('closed trigger ARIA (haspopup, expanded, controls): ' + JSON.stringify(aria));
+			}
+			// Bits UI's portal mounts its own root into <body>; a closed menu has none.
+			const before = await page.evaluate(() => document.body.childNodes.length);
+			await c.press(page.getByRole('button', { name: 'Mount three menus' }));
+			await page.getByRole('button', { name: 'More 3' }).waitFor({ timeout: 3000 });
+			const added = (await page.evaluate(() => document.body.childNodes.length)) - before;
+			if (added !== 0) throw new Error(`three closed menus added ${added} nodes to <body>`);
+			if (await page.getByRole('menu').count()) throw new Error('a closed menu is in the DOM');
+		});
+		await c.step('first open plays the entrance; aria-controls names the menu', async () => {
+			await recordEntrance(page);
+			await c.press(page.getByRole('button', { name: 'More 1' }));
+			const menu = page.getByRole('menu');
+			await menu.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			if (!(await page.evaluate(() => window.__entrance))) throw new Error('no entrance animation on the first open');
+			const [, expanded, controls] = await triggerAria('More 1');
+			const id = await menu.getAttribute('id');
+			if (expanded !== 'true' || !controls || controls !== id) {
+				throw new Error(`open trigger: expanded=${expanded} controls=${controls}, menu id=${id}`);
+			}
+			await page.keyboard.press('Escape');
+			await menu.waitFor({ state: 'hidden', timeout: 3000 });
+			const closed = await triggerAria('More 1');
+			if (closed[1] !== 'false' || closed[2] !== null) throw new Error('trigger ARIA after closing: ' + JSON.stringify(closed));
+		});
+		await c.step('first open by keys focuses the first item', async () => {
+			await page.getByRole('button', { name: 'More 2' }).focus();
+			await page.keyboard.press('Enter');
+			await page.getByRole('menu').waitFor({ state: 'visible', timeout: 3000 });
+			await wait(300);
+			const focused = await page.evaluate(
+				() => `${document.activeElement?.getAttribute('role')}:${document.activeElement?.textContent?.trim()}`
+			);
+			if (focused !== 'menuitem:First') throw new Error('focus after Enter: ' + focused);
+			await page.keyboard.press('Escape');
+			await page.getByRole('menu').waitFor({ state: 'hidden', timeout: 3000 });
+		});
 		await c.step('menu opens (list or sheet)', async () => {
 			await c.press(page.getByRole('button', { name: 'View' }));
 			await page.getByRole('menu').waitFor({ state: 'visible', timeout: 3000 });
@@ -157,6 +245,114 @@ const drivers = {
 			await wait(300);
 			await page.keyboard.press('Escape');
 			await page.getByRole('menu').waitFor({ state: 'hidden', timeout: 3000 });
+		});
+	},
+
+	async search(c) {
+		const { page } = c;
+		const field = page.getByRole('searchbox', { name: 'Search this page' });
+		const clear = page.getByRole('search').getByRole('button', { name: 'Clear', exact: true });
+		const state = () => page.locator('#search-state').textContent();
+		const inField = () => field.evaluate((n) => n === document.activeElement);
+		const control = c.touch ? 44 : 36;
+		await c.step('hidden label names the field; 16px text in the well', async () => {
+			const label = await page.locator('label', { hasText: 'Search this page' }).boundingBox();
+			if (!label || label.width > 1 || label.height > 1) throw new Error('label shows: ' + JSON.stringify(label));
+			const [size, height] = await field.evaluate((n) => [getComputedStyle(n).fontSize, n.getBoundingClientRect().height]);
+			if (size !== '16px' || height !== control) throw new Error(`well: font ${size}, height ${height}`);
+		});
+		await c.step('the browser cancel button never shows', async () => {
+			await field.fill('abc');
+			const plain = await searchCancelDisplay(page, '#plain-search');
+			if (plain === 'none' || plain === 'absent') throw new Error(`control: the plain search input's cancel button is ${plain}`);
+			for (const selector of ['#page-search', '.hp-text-field input[type=search]:disabled']) {
+				const display = await searchCancelDisplay(page, selector);
+				if (display !== 'none') throw new Error(`${selector}: cancel button display ${display}`);
+			}
+		});
+		await c.step('clear by pointer keeps focus in the field', async () => {
+			await field.fill('abc');
+			const box = await clear.boundingBox();
+			if (!box || box.width < control || box.height < control) throw new Error('clear button box ' + JSON.stringify(box));
+			await field.evaluate((n) => {
+				window.__blurs = 0;
+				n.addEventListener('blur', () => window.__blurs++);
+			});
+			const before = await state();
+			await c.press(clear);
+			const inputs = Number(before.match(/inputs=(\d+)/)[1]);
+			const after = await state();
+			if (after !== `value=[] inputs=${inputs + 1}`) throw new Error(`after clear: "${after}", before "${before}"`);
+			if (!(await inField())) throw new Error('focus left the field');
+			const blurs = await page.evaluate(() => window.__blurs);
+			if (blurs) throw new Error(`the field blurred ${blurs} times`);
+			if (await clear.count()) throw new Error('clear button still shows on an empty field');
+		});
+		await c.step('clear by keys: Tab, then Enter or Space', async () => {
+			for (const key of ['Enter', 'Space']) {
+				await field.focus();
+				await page.keyboard.type('xy');
+				await page.keyboard.press('Tab');
+				const name = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
+				if (name !== 'Clear') throw new Error(`Tab reached "${name}", not the clear button`);
+				await page.keyboard.press(key);
+				if (!(await state()).startsWith('value=[] ')) throw new Error(`${key} did not clear: ${await state()}`);
+				if (!(await inField())) throw new Error(`focus after ${key} is not in the field`);
+			}
+		});
+		await c.step('clearLabel names the button; a disabled field has none', async () => {
+			if ((await page.getByRole('button', { name: 'Clear search' }).count()) !== 1) throw new Error('no "Clear search" button');
+			if ((await page.getByRole('button', { name: /^Clear/ }).count()) !== 1) throw new Error('a disabled or empty field shows a clear button');
+		});
+	},
+
+	async buttons(c) {
+		const { page } = c;
+		const control = c.touch ? 44 : 36;
+		const read = (id) =>
+			page.evaluate((id) => {
+				const n = document.getElementById(id);
+				return {
+					tag: n.tagName,
+					parent: n.parentElement.id,
+					classes: n.className,
+					variant: n.getAttribute('data-variant'),
+					icon: n.hasAttribute('data-icon'),
+					opens: n.hasAttribute('data-opens'),
+					type: n.getAttribute('type'),
+					href: n.getAttribute('href'),
+					role: n.getAttribute('role'),
+					ariaDisabled: n.getAttribute('aria-disabled') === 'true',
+					tabIndex: n.tabIndex,
+					disabled: n.disabled ?? null,
+					size: [n.getBoundingClientRect().width, n.getBoundingClientRect().height]
+				};
+			}, id);
+		const expect = (what, got, want) => {
+			for (const [k, v] of Object.entries(want)) {
+				if (JSON.stringify(got[k]) !== JSON.stringify(v)) throw new Error(`${what}: ${k} is ${JSON.stringify(got[k])}, expected ${JSON.stringify(v)}`);
+			}
+		};
+		await c.step('icon button: a plain <button>, attributes, ref, click', async () => {
+			const b = await read('b-icon');
+			expect('icon button', b, { tag: 'BUTTON', parent: 'icon-host', variant: 'tertiary', icon: true, type: 'button', size: [control, control] });
+			if (!/\bhp-button\b/.test(b.classes) || !/\bhp-label\b/.test(b.classes)) throw new Error('classes: ' + b.classes);
+			await c.press(page.locator('#b-icon'));
+			const s = await page.locator('#button-state').textContent();
+			if (s !== 'clicks=1 ref=BUTTON') throw new Error('after click: ' + s);
+		});
+		await c.step('variants, disabled button, links', async () => {
+			expect('primary', await read('b-primary'), { tag: 'BUTTON', variant: 'primary', type: null });
+			expect('opens', await read('b-opens'), { variant: 'secondary', opens: true });
+			expect('disabled', await read('b-disabled'), { tag: 'BUTTON', disabled: true });
+			expect('link', await read('b-link'), { tag: 'A', href: '#buttons', role: null, ariaDisabled: false, tabIndex: 0 });
+			expect('disabled link', await read('b-link-disabled'), {
+				tag: 'A',
+				href: null,
+				role: 'link',
+				ariaDisabled: true,
+				tabIndex: -1
+			});
 		});
 	},
 

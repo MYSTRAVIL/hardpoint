@@ -1,9 +1,10 @@
 <script lang="ts" module>
-	import { Button as BitsButton } from 'bits-ui';
+	import type { Snippet } from 'svelte';
+	import type { HTMLAnchorAttributes, HTMLButtonAttributes } from 'svelte/elements';
 
 	export type ButtonVariant = 'primary' | 'secondary' | 'tertiary';
 
-	export type ButtonProps = BitsButton.RootProps & {
+	type ButtonOwnProps = {
 		/**
 		 * `primary`: solid titanium block, for the view's one group of solid
 		 * blocks. `secondary` (default): outlined. `tertiary`: caps label only.
@@ -17,7 +18,27 @@
 		 * `aria-label`.
 		 */
 		icon?: boolean;
+		/** The `<button>`, or the `<a>` when `href` is set. */
+		ref?: HTMLElement | null;
+		children?: Snippet;
 	};
+
+	/**
+	 * An `<a>` when `href` is set, a `<button>` otherwise. Attributes and
+	 * handlers not listed here go to the element.
+	 */
+	export type ButtonProps =
+		| (ButtonOwnProps &
+				Omit<HTMLButtonAttributes, 'children' | 'type' | 'href'> & {
+					type?: HTMLButtonAttributes['type'];
+					href?: never;
+				})
+		| (ButtonOwnProps &
+				Omit<HTMLAnchorAttributes, 'children' | 'type' | 'href'> & {
+					href: HTMLAnchorAttributes['href'];
+					type?: never;
+					disabled?: HTMLButtonAttributes['disabled'];
+				});
 </script>
 
 <script lang="ts">
@@ -27,30 +48,56 @@
 		icon = false,
 		class: className,
 		ref = $bindable(null),
+		href,
+		disabled,
 		children,
 		...rest
 	}: ButtonProps = $props();
+
+	// `rest` holds one element's attributes; each branch reads it as its own.
+	const asButton = (attributes: typeof rest) => attributes as HTMLButtonAttributes;
+	const asLink = (attributes: typeof rest) => attributes as HTMLAnchorAttributes;
 </script>
 
 <!--
-	An <a> when `href` is set, a <button> otherwise (Bits UI Button.Root). A
-	disabled link renders without href, with aria-disabled="true" and
-	tabindex -1; a disabled <button> is not focusable.
+	A plain <button> without `href`, an <a> with it, with no component layer
+	between: a transcript may draw hundreds. A disabled link renders without
+	href, with role="link", aria-disabled="true" and tabindex -1; a disabled
+	<button> is not focusable.
 -->
-<BitsButton.Root
-	bind:ref
-	class={['hp-button', 'hp-label', className]}
-	data-variant={variant}
-	data-opens={opens || undefined}
-	data-icon={icon || undefined}
-	{...rest}
->
-	{@render children?.()}
-</BitsButton.Root>
+{#if !href}
+	<button
+		bind:this={ref}
+		class={['hp-button', 'hp-label', className]}
+		data-variant={variant}
+		data-opens={opens || undefined}
+		data-icon={icon || undefined}
+		{disabled}
+		{...asButton(rest)}
+	>
+		{@render children?.()}
+	</button>
+{:else}
+	<a
+		bind:this={ref}
+		class={['hp-button', 'hp-label', className]}
+		data-variant={variant}
+		data-opens={opens || undefined}
+		data-icon={icon || undefined}
+		href={disabled ? undefined : href}
+		role={disabled ? 'link' : undefined}
+		aria-disabled={disabled ? 'true' : undefined}
+		tabindex={disabled ? -1 : undefined}
+		{...asLink(rest)}
+	>
+		{@render children?.()}
+	</a>
+{/if}
 
 <style>
-	/* Bits UI renders the element, so the root class reaches it from the
-	   outside: the rules are :global, keyed on .hp-button and its data-*. */
+	/* Global rules keyed on .hp-button and its data-*, at one class of
+	   specificity as when Bits UI rendered the element, so an app's rules
+	   that override them still apply. */
 	:global(.hp-button) {
 		display: inline-flex;
 		align-items: center;

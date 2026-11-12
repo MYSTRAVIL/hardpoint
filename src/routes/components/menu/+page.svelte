@@ -72,6 +72,10 @@
 				<code>start</code>) and <code>sideOffset</code>, which apply from 600px only.
 			</li>
 			<li>
+				A menu that was never opened mounts only its trigger, so a view can hold many. The list mounts on the
+				first open and stays mounted after it.
+			</li>
+			<li>
 				<code>MenuItem</code> runs <code>onSelect</code> and closes the menu; <code>variant="danger"</code> marks
 				an action that deletes or removes something. <code>MenuGroup</code> takes a <code>label</code> for a caps
 				heading, and <code>MenuSeparator</code> divides groups.

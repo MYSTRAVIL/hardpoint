@@ -4,6 +4,8 @@ A Vite + Svelte 5 app without SvelteKit. It installs the packed `@mystravil/hard
 
 The repo's own gates read the `.svelte` sources. This app sees what an npm user gets: the files in `dist/`, the shipped `.d.ts` types, and the dependencies the package declares.
 
+Some drivers also assert behaviour that only the shipped package can prove: a closed Menu adds nothing to `<body>` and its first open plays the entrance (`menus`), a search TextField hides the browser's cancel button and its own clear button works by pointer and keys (`search`), and Button renders the right element with the right link semantics (`buttons`). A failed assertion is a failed step.
+
 The policy (`vite.config.js`, `preview.headers`) is omp-remote's production policy:
 
 ```
