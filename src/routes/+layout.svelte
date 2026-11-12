@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { browser } from '$app/env';
 	import { page } from '$app/state';
 	import '#lib/fonts.css';
@@ -11,6 +12,12 @@
 
 	// The /motion page's overrides for this tab, on every page: docs and bare.
 	if (browser) applySavedTuning();
+
+	// `npm run audit` waits for this mark: before hydration a server-rendered page lacks its client-only
+	// parts and an `ssr = false` route such as /app is empty, and a cold dev server can take seconds.
+	onMount(() => {
+		document.documentElement.dataset.hydrated = '';
+	});
 </script>
 
 <!--

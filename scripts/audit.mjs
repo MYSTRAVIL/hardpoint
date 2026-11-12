@@ -7,7 +7,7 @@
 //   --motion   also run the motion pass (opt-in; not part of the default gate; dark only), see below
 //   --json     print machine-readable results instead of the report
 //   --verbose  also list every unchecked finding (default: first 3 per viewport), and every timed animation
-//   --wait ms  settle time after load (default 600)
+//   --wait ms  settle time after the page has hydrated (default 600)
 // Viewports: 320x640, 390x844, 768x1024 (touch, coarse pointer) and 1440x900 (fine pointer), in each theme.
 // A theme is chosen the way an app's user does: the saved choice (localStorage "hardpoint:theme") is set before
 // the page loads, and src/app.html applies it before first paint. Each result is labelled with its theme.
@@ -98,6 +98,8 @@ async function visit(browser, base, route, vp, reducedMotion, inspect, theme) {
     consoleErrors = [];
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+      // src/routes/+layout.svelte sets this once the app has mounted; until then client-only parts are missing.
+      await page.waitForSelector('html[data-hydrated]', { state: 'attached', timeout: 30000 });
       await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(wait);
       result = await inspect(page);

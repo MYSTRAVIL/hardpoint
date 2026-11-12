@@ -36,8 +36,10 @@
 	const scale = 15;
 	const ticks = [0, 5, 10, 15];
 
-	let width = $state(640);
-	let height = $state(400);
+	// 0 until MediaFrame measures itself. The chart draws only then, as on the MediaFrame docs page: the
+	// server-rendered page cannot know the frame's size, and a guessed size overflows the frame until hydration.
+	let width = $state(0);
+	let height = $state(0);
 
 	const chart = $derived.by(() => {
 		const pad = { top: 40, right: 40, bottom: 44, left: 48 };
@@ -106,38 +108,40 @@
 		<figure class="media">
 			<Tag>Activity</Tag>
 			<MediaFrame bind:width bind:height>
-				<svg
-					class="chart"
-					{width}
-					{height}
-					viewBox="0 0 {width} {height}"
-					role="img"
-					aria-label="Tasks closed per week, weeks {weeks[0]} to {weeks[weeks.length - 1]}: {closed.join(', ')}."
-				>
-					{#each chart.grid as g (g.t)}
-						<line
-							class={g.t === 0 ? 'baseline' : 'gridline'}
-							x1={chart.pad.left}
-							x2={chart.right}
-							y1={g.y}
-							y2={g.y}
-						/>
-						<text class="tick" x={chart.pad.left - 12} y={g.y + 4} text-anchor="end">{g.t}</text>
-					{/each}
-					{#each chart.bars as b (b.week)}
-						{#each b.segments as s, k (k)}
-							<rect class:current={b.current} x={b.x} y={s.y} width={chart.barW} height={s.h} />
+				{#if width > 0 && height > 0}
+					<svg
+						class="chart"
+						{width}
+						{height}
+						viewBox="0 0 {width} {height}"
+						role="img"
+						aria-label="Tasks closed per week, weeks {weeks[0]} to {weeks[weeks.length - 1]}: {closed.join(', ')}."
+					>
+						{#each chart.grid as g (g.t)}
+							<line
+								class={g.t === 0 ? 'baseline' : 'gridline'}
+								x1={chart.pad.left}
+								x2={chart.right}
+								y1={g.y}
+								y2={g.y}
+							/>
+							<text class="tick" x={chart.pad.left - 12} y={g.y + 4} text-anchor="end">{g.t}</text>
 						{/each}
-						{#if b.label}
-							<text class="tick" x={b.cx} y={chart.base + 24} text-anchor="middle">W{b.week}</text>
-						{/if}
-						{#if b.current}
-							<text class="value" x={b.cx} y={(b.segments.at(-1)?.y ?? chart.base) - 10} text-anchor="middle"
-								>{b.count}</text
-							>
-						{/if}
-					{/each}
-				</svg>
+						{#each chart.bars as b (b.week)}
+							{#each b.segments as s, k (k)}
+								<rect class:current={b.current} x={b.x} y={s.y} width={chart.barW} height={s.h} />
+							{/each}
+							{#if b.label}
+								<text class="tick" x={b.cx} y={chart.base + 24} text-anchor="middle">W{b.week}</text>
+							{/if}
+							{#if b.current}
+								<text class="value" x={b.cx} y={(b.segments.at(-1)?.y ?? chart.base) - 10} text-anchor="middle"
+									>{b.count}</text
+								>
+							{/if}
+						{/each}
+					</svg>
+				{/if}
 			</MediaFrame>
 			<figcaption>
 				<span class="caption">Tasks closed per week, W{weeks[0]} to W{weeks[weeks.length - 1]}</span>
