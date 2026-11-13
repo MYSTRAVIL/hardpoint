@@ -67,6 +67,27 @@
 		topicsSaved = `Following ${topics.length} ${topics.length === 1 ? 'topic' : 'topics'}.`;
 	}
 
+	// A single box in a form: the page validates, the box shows the error it
+	// is given. On submit, focus goes to the box; checking it clears the
+	// error.
+	let accepted = $state(false);
+	let acceptedError = $state<string>();
+	let acceptedRef = $state<HTMLElement | null>(null);
+	let joined = $state('');
+	$effect(() => {
+		if (accepted) acceptedError = undefined;
+	});
+	function submitTerms(event: SubmitEvent) {
+		event.preventDefault();
+		joined = '';
+		if (!accepted) {
+			acceptedError = 'Accept the terms to join the workspace.';
+			acceptedRef?.focus();
+			return;
+		}
+		joined = 'You joined the workspace.';
+	}
+
 	const rows = [
 		{ name: 'Mara Ilves', role: 'Owner' },
 		{ name: 'Jonas Berg', role: 'Editor' },
@@ -97,8 +118,17 @@
 				<strong>Label.</strong> <code>label</code> is the text beside the box, as written, never in caps.
 				<code>hint</code> adds a muted line under it that is read out as the box’s description.
 				<code>tag</code> adds a <a href="/components/tag">Tag</a> after the label, such as Recommended,
-				which is part of the box’s name. A box without a visible label, such as a row’s selection in a
-				table, needs an <code>aria-label</code>.
+				which is part of the box’s name. Every box needs a name, and the types ask for exactly one of
+				<code>label</code>, <code>aria-label</code> or <code>aria-labelledby</code>: a box without a
+				visible label, such as a row’s selection in a table, takes an <code>aria-label</code>.
+			</li>
+			<li>
+				<strong>Error.</strong> <code>error</code> shows a message with an icon 8px under the row, sets
+				<code>aria-invalid</code> on the button and turns the box’s edge red; a box has one boundary,
+				as a text field’s well. The error is linked by <code>aria-describedby</code>, before the hint
+				and your own ids. Say how to fix the problem. An error that appears after the first render fades
+				in with the red edge over <code>--dur-message</code> (120ms); one that clears goes at once. The
+				app validates; on submit it focuses the box through <code>bind:ref</code>.
 			</li>
 			<li>
 				<strong>Value.</strong> <code>bind:checked</code> holds the state. <code>indeterminate</code>
@@ -159,6 +189,37 @@
 			<span class="hp-mono">offline = {offline}</span> ·
 			<span class="hp-mono">overdue = {overdue}</span>
 		</p>
+	</section>
+
+	<section aria-labelledby="error">
+		<h2 id="error" class="hp-section-title">Hint and error</h2>
+		<p class="lede">
+			The error sits 8px under the row, under the hint if there is one, and the box’s edge turns red,
+			checked or not. A disabled box keeps its quiet boundary. Send the form without checking the box:
+			the error appears and the box takes focus. Check it and the error clears.
+		</p>
+		<div class="stack">
+			<Checkbox
+				label="Share the file with everyone in the workspace"
+				hint="Anyone in the workspace can read it."
+				error="Choose who may read the file, or turn sharing off."
+				checked
+			/>
+			<Checkbox label="Allow comments" error="Comments are on for the whole workspace." />
+			<Checkbox label="Sync over mobile data" error="Your workspace turned this off." disabled />
+		</div>
+		<form class="form" novalidate onsubmit={submitTerms}>
+			<Checkbox
+				label="I accept the workspace terms"
+				error={acceptedError}
+				bind:checked={accepted}
+				bind:ref={acceptedRef}
+			/>
+			<div class="actions">
+				<Button type="submit" variant="primary">Join workspace</Button>
+			</div>
+			<p class="sent hp-dense" role="status">{joined}</p>
+		</form>
 	</section>
 
 	<section aria-labelledby="mixed">
@@ -322,6 +383,10 @@
 	/* A second set of examples in the same section. */
 	.more {
 		margin-top: var(--space-10);
+	}
+	.stack + .form {
+		margin-top: var(--space-6);
+		max-width: 480px;
 	}
 	/* The counter before a question, quieter than the question. */
 	.counter {

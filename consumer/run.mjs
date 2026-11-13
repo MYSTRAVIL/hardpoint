@@ -6,7 +6,7 @@
 //   node run.mjs --keep-server   leave `vite preview` running afterwards
 //
 // It starts `vite preview` itself (policy header from vite.config.js) on port
-// 4180 unless something already answers there. Exit 0: no violations, no failed
+// 4180, or CONSUMER_PORT when set, unless something already answers there. Exit 0: no violations, no failed
 // steps. Exit 1: a violation. Exit 2: a step could not reach its state (a state
 // that was not reached is not proven clean).
 
@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const BASE = 'http://127.0.0.1:4180';
+const BASE = `http://127.0.0.1:${process.env.CONSUMER_PORT || 4180}`;
 
 const args = process.argv.slice(2);
 const keepServer = args.includes('--keep-server');
@@ -69,6 +69,51 @@ const attrs = (loc, names) => loc.evaluate((n, names) => names.map((a) => n.getA
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+// A Dialog, ImageViewer or AppShell drawer trigger's popup ARIA. While
+// closed it is ['dialog', 'false', null]: aria-controls names the dialog
+// only while it is open.
+const DIALOG_POPUP = ['aria-haspopup', 'aria-expanded', 'aria-controls'];
+
+// Presses `mount`, which mounts closed overlays (`what`) until `ready` is
+// attached, and fails if they added a node to <body> or a dialog to the page.
+async function assertClosedMountNothing(c, mount, ready, what) {
+	const before = await bodyNodes(c.page);
+	await c.press(mount);
+	await ready.waitFor({ state: 'attached', timeout: 3000 });
+	await wait(100);
+	const added = (await bodyNodes(c.page)) - before;
+	c.info(`${what}: ${added} nodes added to <body>`);
+	if (added !== 0) throw new Error(`${what} added ${added} nodes to <body>`);
+	if (await c.page.getByRole('dialog').count()) throw new Error(`${what}: a dialog is in the DOM`);
+}
+
+// The first open of a Dialog-family overlay from `trigger`: the entrance
+// plays, the trigger points at the dialog, focus starts on its Close button,
+// and Escape closes it, restores the closed ARIA and gives focus back.
+async function assertFirstDialogOpen(c, trigger) {
+	const { page } = c;
+	await recordEntrance(page, '[role=dialog]');
+	await c.press(trigger);
+	const dialog = page.getByRole('dialog');
+	await dialog.waitFor({ state: 'visible', timeout: 3000 });
+	await wait(400);
+	await assertEntrance(page);
+	const [, expanded, controls] = await attrs(trigger, DIALOG_POPUP);
+	const id = await dialog.getAttribute('id');
+	if (expanded !== 'true' || !controls || controls !== id) {
+		throw new Error(`open trigger: expanded=${expanded} controls=${controls}, dialog id=${id}`);
+	}
+	const close = dialog.getByRole('button', { name: 'Close', exact: true });
+	if (!(await close.evaluate((n) => n === document.activeElement))) {
+		throw new Error('focus after the first open: ' + (await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))));
+	}
+	await page.keyboard.press('Escape');
+	await dialog.waitFor({ state: 'hidden', timeout: 3000 });
+	const closed = await attrs(trigger, DIALOG_POPUP);
+	if (!same(closed, ['dialog', 'false', null])) throw new Error('trigger ARIA after closing: ' + JSON.stringify(closed));
+	if (!(await trigger.evaluate((n) => n === document.activeElement))) throw new Error('focus did not return to the trigger');
+}
+
 // The computed display of the browser's own cancel button inside the search
 // input `selector` matches. It sits in the input's user-agent shadow root,
 // which only the DevTools protocol reaches.
@@ -98,8 +143,47 @@ async function searchCancelDisplay(page, selector) {
 const drivers = {
 	async dialogs(c) {
 		const { page } = c;
+		await c.step('closed dialogs mount no layers; trigger ARIA', async () => {
+			const aria = await attrs(page.getByRole('button', { name: 'Open dialog', exact: true }), DIALOG_POPUP);
+			if (!same(aria, ['dialog', 'false', null])) throw new Error('closed trigger ARIA: ' + JSON.stringify(aria));
+			await assertClosedMountNothing(
+				c,
+				page.getByRole('button', { name: 'Mount three dialogs' }),
+				page.getByRole('button', { name: 'Confirm 3' }),
+				'three closed dialogs'
+			);
+		});
+		await c.step('dialog first open: entrance, focus on Close, aria-controls names the dialog', () =>
+			assertFirstDialogOpen(c, page.getByRole('button', { name: 'Confirm 1' }))
+		);
+		await c.step('initialFocus (an element, a function) places focus; an app onOpenAutoFocus that prevents wins', async () => {
+			for (const [trigger, target] of [
+				['Delete item', page.getByRole('button', { name: 'Keep', exact: true })],
+				['Delete item', page.getByRole('button', { name: 'Keep', exact: true })],
+				['Rename item', page.getByLabel('Item name')],
+				['Own focus', page.getByLabel('Second field')]
+			]) {
+				await c.press(page.getByRole('button', { name: trigger, exact: true }));
+				const dialog = page.getByRole('dialog', { name: trigger });
+				await dialog.waitFor({ state: 'visible', timeout: 3000 });
+				await wait(400);
+				if (!(await target.evaluate((n) => n === document.activeElement))) {
+					throw new Error(`${trigger}: focus on ` + (await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))));
+				}
+				await page.keyboard.press('Escape');
+				await dialog.waitFor({ state: 'hidden', timeout: 3000 });
+			}
+		});
+		await c.step('a dialog mounted with open set opens', async () => {
+			await c.press(page.getByRole('button', { name: 'Mount an open dialog' }));
+			const dialog = page.getByRole('dialog', { name: 'Opened at mount' });
+			await dialog.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await page.keyboard.press('Escape');
+			await dialog.waitFor({ state: 'hidden', timeout: 3000 });
+		});
 		await c.step('dialog opens', async () => {
-			await c.press(page.getByRole('button', { name: 'Open dialog' }));
+			await c.press(page.getByRole('button', { name: 'Open dialog', exact: true }));
 			await page.getByRole('dialog').waitFor({ state: 'visible', timeout: 3000 });
 			c.info('dialog form: ' + (await page.getByRole('dialog').getAttribute('data-form')));
 			await wait(500);
@@ -304,6 +388,46 @@ const drivers = {
 			await page.keyboard.press('Escape');
 			await page.getByRole('listbox').waitFor({ state: 'hidden', timeout: 3000 });
 		});
+		await c.step('combobox status region: mounted with the field, holds emptyText only while open and empty', async () => {
+			// "Other" is closed here (fresh page), emptyText "Nothing found".
+			const root = page.locator('.hp-combobox').filter({ has: page.locator('label', { hasText: /^Other$/ }) });
+			const status = root.locator('[role=status]');
+			const text = async (loc) => ((await loc.textContent()) ?? '').trim();
+			if ((await status.count()) !== 1) throw new Error('a closed combobox has ' + (await status.count()) + ' status regions');
+			if (await text(status)) throw new Error('the closed status region holds "' + (await text(status)) + '"');
+			const filled = () => page.evaluate(() => [...document.querySelectorAll('[role=status]')].map((n) => n.textContent.trim()).filter((t) => t === 'Nothing found').length);
+			if (c.touch) {
+				await c.press(page.getByRole('combobox', { name: 'Other' }));
+				const sheet = page.getByRole('dialog', { name: 'Other' });
+				await sheet.waitFor({ state: 'visible', timeout: 3000 });
+				await wait(400);
+				const search = sheet.getByRole('combobox');
+				const placeholder = await search.getAttribute('placeholder');
+				if (placeholder !== 'Search') throw new Error('the sheet search input placeholder is ' + JSON.stringify(placeholder));
+				if ((await sheet.locator('[role=status]').count()) !== 1) throw new Error('the open sheet holds no single status region');
+				await page.keyboard.type('zzz', { delay: 30 });
+				await wait(300);
+				if ((await text(sheet.locator('[role=status]'))) !== 'Nothing found') throw new Error('the sheet status region does not hold the empty text');
+				if ((await filled()) !== 1) throw new Error('the empty text sits in ' + (await filled()) + ' status regions');
+				await c.press(sheet.getByRole('button', { name: /^close$/i }));
+				await sheet.waitFor({ state: 'hidden', timeout: 3000 });
+				await wait(300);
+				if ((await status.count()) !== 1 || (await text(status))) throw new Error('the status region is not back, empty, after the sheet closed');
+				return;
+			}
+			// A key that matches nothing, typed into the closed field: the list opens
+			// and the text arrives in a region that was already there.
+			const field = page.getByRole('combobox', { name: 'Other' });
+			await field.focus();
+			await page.keyboard.press('z');
+			await wait(400);
+			if ((await text(status)) !== 'Nothing found') throw new Error('the status region holds "' + (await text(status)) + '" after a key that matches nothing');
+			if ((await filled()) !== 1) throw new Error('the empty text sits in ' + (await filled()) + ' status regions');
+			if ((await page.locator('.hp-combobox-empty').getAttribute('aria-hidden')) !== 'true') throw new Error('the visible empty line is not aria-hidden');
+			await page.keyboard.press('Escape');
+			await wait(300);
+			if ((await status.count()) !== 1 || (await text(status))) throw new Error('the status region is not empty after closing');
+		});
 		for (const [label, typed, expect] of [
 			['Project', 'des', 'Design system'],
 			['Project', 'zzz', 'No matches'],
@@ -376,6 +500,15 @@ const drivers = {
 			await c.press(page.getByRole('button', { name: 'View' }));
 			await page.getByRole('menu').waitFor({ state: 'visible', timeout: 3000 });
 			await wait(400);
+		});
+		await c.step('MenuItem tone: data-tone and the danger label; no tone, no attribute', async () => {
+			const read = (name) =>
+				page.getByRole('menuitem', { name, exact: true }).evaluate((n) => ({ tone: n.getAttribute('data-tone'), variant: n.getAttribute('data-variant'), color: getComputedStyle(n).color }));
+			const del = await read('Delete');
+			const cut = await read('Cut');
+			if (del.tone !== 'danger' || del.variant !== null) throw new Error('danger item attributes: ' + JSON.stringify(del));
+			if (cut.tone !== null) throw new Error('neutral item has data-tone: ' + JSON.stringify(cut));
+			if (del.color === cut.color) throw new Error('danger item has the neutral label colour ' + del.color);
 		});
 		await c.step('checkbox and radio items', async () => {
 			await c.press(page.getByRole('menuitemcheckbox', { name: 'Show hidden' }));
@@ -465,6 +598,9 @@ const drivers = {
 					parent: n.parentElement.id,
 					classes: n.className,
 					variant: n.getAttribute('data-variant'),
+					tone: n.getAttribute('data-tone'),
+					color: getComputedStyle(n).color,
+					borderColor: getComputedStyle(n).borderTopColor,
 					icon: n.hasAttribute('data-icon'),
 					opens: n.hasAttribute('data-opens'),
 					type: n.getAttribute('type'),
@@ -502,6 +638,60 @@ const drivers = {
 				tabIndex: -1
 			});
 		});
+		await c.step('danger tone: data-tone on the element, ink changes, disabled ignores it', async () => {
+			const normal = await read('b-opens');
+			const secondary = await read('b-danger');
+			const tertiary = await read('b-danger-tertiary');
+			const disabled = await read('b-danger-disabled');
+			const icon = await read('b-danger-icon');
+			const link = await read('b-danger-link');
+			expect('danger secondary', secondary, { tag: 'BUTTON', variant: 'secondary', tone: 'danger' });
+			expect('danger tertiary', tertiary, { tag: 'BUTTON', variant: 'tertiary', tone: 'danger' });
+			expect('danger disabled', disabled, { tone: 'danger', disabled: true });
+			expect('danger icon', icon, { tone: 'danger', icon: true, size: [control, control] });
+			expect('danger link', link, { tag: 'A', tone: 'danger', href: '#buttons' });
+			expect('no tone', await read('b-primary'), { tone: null });
+			expect('no tone', normal, { tone: null });
+			const danger = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--danger').trim());
+			// The tokens hold hex values; compare as the browser reports them.
+			const probe = await page.evaluate((v) => {
+				const e = document.createElement('i');
+				e.style.color = v;
+				document.body.append(e);
+				const c = getComputedStyle(e).color;
+				e.remove();
+				return c;
+			}, danger);
+			for (const [what, got] of [['secondary', secondary.color], ['tertiary', tertiary.color], ['icon', icon.color], ['link', link.color]]) {
+				if (got !== probe) throw new Error(`danger ${what} label is ${got}, expected --danger ${probe}`);
+			}
+			if (secondary.borderColor !== probe) throw new Error(`danger secondary border is ${secondary.borderColor}, expected ${probe}`);
+			if (normal.color === probe) throw new Error('a button without a tone has the danger label');
+			// Disabled keeps the normal disabled look: muted ink, the quiet border.
+			const plain = await page.evaluate(() => {
+				const b = document.getElementById('b-disabled');
+				return { color: getComputedStyle(b).color };
+			});
+			if (disabled.color !== plain.color) throw new Error(`danger disabled label is ${disabled.color}, a plain disabled button's is ${plain.color}`);
+			if (disabled.borderColor === probe) throw new Error('danger disabled button keeps the danger border');
+		});
+		if (!c.touch) {
+			await c.step('danger tone: hover and focus keep their normal look', async () => {
+				const fill = (id) => page.evaluate((id) => getComputedStyle(document.getElementById(id)).backgroundColor, id);
+				const rest = await fill('b-danger');
+				await page.locator('#b-danger').hover();
+				await wait(300);
+				const hover = await fill('b-danger');
+				if (hover === rest) throw new Error('danger secondary shows no hover fill');
+				await page.locator('#b-danger-tertiary').hover();
+				await wait(300);
+				const deco = await page.evaluate(() => {
+					const s = getComputedStyle(document.getElementById('b-danger-tertiary'));
+					return { line: s.textDecorationLine, color: s.textDecorationColor, ink: s.color };
+				});
+				if (deco.line !== 'underline' || deco.color !== deco.ink) throw new Error('danger tertiary hover underline: ' + JSON.stringify(deco));
+			});
+		}
 	},
 
 	async tooltips(c) {
@@ -583,6 +773,23 @@ const drivers = {
 
 	async toasts(c) {
 		const { page } = c;
+		const warnings = [];
+		page.on('console', (m) => {
+			if (m.type() === 'warning' && /Toaster/.test(m.text())) warnings.push(m.text());
+		});
+		if (c.variant === 'bare') {
+			await c.step('toast() without a Toaster warns once, names the fix, and returns a handle', async () => {
+				await c.press(page.getByRole('button', { name: 'Plain toast' }));
+				await wait(200);
+				await c.press(page.getByRole('button', { name: 'Action toast' }));
+				await wait(200);
+				if (warnings.length !== 1) throw new Error(`expected one warning after two toast() calls, got ${warnings.length}`);
+				if (!/<Toaster \/>/.test(warnings[0])) throw new Error('the warning does not name the fix: ' + warnings[0]);
+				if (await page.locator('.hp-toaster').count()) throw new Error('a toast rendered without a Toaster');
+				if ((await page.locator('#handle').textContent()) !== 'handle') throw new Error('toast() returned no dismiss handle');
+			});
+			return;
+		}
 		await c.step('toast, action, replacement', async () => {
 			await c.press(page.getByRole('button', { name: 'Plain toast' }));
 			await page.locator('.hp-toaster').waitFor({ state: 'visible', timeout: 3000 });
@@ -597,6 +804,9 @@ const drivers = {
 			await wait(500);
 			await c.press(page.locator('.hp-toaster').getByRole('button', { name: 'Undo' }));
 			await wait(600);
+		});
+		await c.step('a mounted Toaster means no warning', async () => {
+			if (warnings.length) throw new Error('toast() warned although a Toaster is mounted: ' + warnings[0]);
 		});
 		await c.step('wide toast cap and dismiss', async () => {
 			await c.press(page.getByRole('button', { name: 'Wide', exact: true }));
@@ -875,6 +1085,23 @@ const drivers = {
 		});
 	},
 
+	async selected(c) {
+		const { page } = c;
+		await c.step('.hp-selected draws the edge and tint; an app rule outranks it', async () => {
+			const style = (sel) => page.locator(sel).evaluate((n) => { const s = getComputedStyle(n); return { bg: s.backgroundColor, shadow: s.boxShadow }; });
+			const [plain, picked, rtl, own, inherit, island] = await Promise.all(['#plain', '#picked', '#rtl', '#own', '#inherit', '#island'].map(style));
+			c.info('selected: ' + JSON.stringify({ plain, picked, rtl, own, inherit, island }));
+			const start = (s) => / 3px 0px 0px 0px inset/.test(s);
+			const end = (s) => / -3px 0px 0px 0px inset/.test(s);
+			if (plain.shadow !== 'none' || plain.bg === picked.bg) throw new Error('a selected row looks like a plain one: ' + picked.bg);
+			if (!start(picked.shadow)) throw new Error('no 3px edge on the inline start: ' + picked.shadow);
+			if (!end(rtl.shadow)) throw new Error('dir="rtl" on the row keeps the edge on the left: ' + rtl.shadow);
+			if (!end(inherit.shadow)) throw new Error('dir="rtl" on the list keeps the edge on the left: ' + inherit.shadow);
+			if (!start(island.shadow)) throw new Error('dir="ltr" inside a right-to-left list has the edge on the right: ' + island.shadow);
+			if (own.bg !== 'rgb(10, 20, 30)') throw new Error('an app rule does not outrank .hp-selected: ' + own.bg);
+		});
+	},
+
 	async viewer(c) {
 		const { page } = c;
 		const stage = page.locator('.hp-image-viewer-stage');
@@ -883,6 +1110,27 @@ const drivers = {
 			const b = await page.locator('.hp-image-viewer-image').boundingBox();
 			return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 		};
+		await c.step('closed viewers mount no layers; trigger ARIA', async () => {
+			const aria = await attrs(page.getByRole('button', { name: 'Open same-origin' }), DIALOG_POPUP);
+			if (!same(aria, ['dialog', 'false', null])) throw new Error('closed trigger ARIA: ' + JSON.stringify(aria));
+			await assertClosedMountNothing(
+				c,
+				page.getByRole('button', { name: 'Mount three viewers' }),
+				page.getByRole('button', { name: 'Photo 3' }),
+				'three closed viewers'
+			);
+		});
+		await c.step('viewer first open: entrance, focus on Close, aria-controls names the viewer', () =>
+			assertFirstDialogOpen(c, page.getByRole('button', { name: 'Photo 1' }))
+		);
+		await c.step('a viewer mounted with open set opens', async () => {
+			await c.press(page.getByRole('button', { name: 'Mount an open viewer' }));
+			const viewer = page.getByRole('dialog', { name: 'Opened at mount' });
+			await viewer.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await page.keyboard.press('Escape');
+			await viewer.waitFor({ state: 'hidden', timeout: 3000 });
+		});
 		for (const [trigger, how] of [['Open same-origin', 'escape'], ['Open data URL', 'swipe']]) {
 			await c.step(trigger + ': open, zoom, download, close by ' + how, async () => {
 				await c.press(page.getByRole('button', { name: trigger }));
@@ -935,6 +1183,14 @@ const drivers = {
 	},
 
 	async feedback(c) {
+		await c.step('MenuItem tone, EmptyState and ErrorState actions render', async () => {
+			const n = await c.page.evaluate(() => ({
+				empty: document.querySelectorAll('.hp-empty-state-actions button').length,
+				error: [...document.querySelector('.hp-error-state-actions').querySelectorAll('button')].map((b) => b.textContent.trim())
+			}));
+			if (n.empty !== 1) throw new Error('EmptyState actions: ' + JSON.stringify(n));
+			if (n.error.join() !== 'Try again,Sign in') throw new Error('ErrorState actions, after the retry button: ' + JSON.stringify(n));
+		});
 		await c.step('class and style set the spinner delay', async () => {
 			const delays = await c.page.evaluate(() =>
 				[...document.querySelectorAll('.hp-spinner')].map((n) => getComputedStyle(n).getPropertyValue('--spinner-delay').trim())
@@ -962,20 +1218,105 @@ const drivers = {
 			await c.press(page.getByRole('switch', { name: 'Notifications' }));
 			await wait(400);
 		});
+		// Select, NativeSelect, Checkbox and Switch take `error` and `hint` as
+		// TextField does. A form relies on these: the control says it is invalid,
+		// its description starts with the error, then the hint, then the app's
+		// own id, and its boundary turns the colour of the message.
+		const fields = [
+			['NativeSelect', page.getByLabel('Native', { exact: true }), 'Native needs a choice', ['Native hint']],
+			['Select', page.getByRole('combobox', { name: 'Plan' }), 'Plan needs a choice', ['Plan hint']],
+			['Checkbox', page.getByRole('checkbox', { name: 'Terms' }), 'Terms needs a choice', ['Terms hint', 'Extra description']],
+			['Switch', page.getByRole('switch', { name: 'Backups' }), 'Backups needs a choice', ['Backups hint']],
+			['Switch without a visible label', page.getByRole('switch', { name: 'Row switch' }), 'Row needs a choice', []]
+		];
+		const state = (loc) =>
+			loc.evaluate((n) => {
+				const texts = (n.getAttribute('aria-describedby') || '')
+					.split(' ')
+					.filter(Boolean)
+					.map((id) => document.getElementById(id));
+				return {
+					invalid: n.getAttribute('aria-invalid'),
+					described: texts.map((e) => e?.textContent.trim() ?? null),
+					edge: getComputedStyle(n).borderTopColor,
+					messageColor: texts[0] ? getComputedStyle(texts[0]).color : null,
+					messageOpacity: texts[0] ? getComputedStyle(texts[0]).opacity : null
+				};
+			});
+		await c.step('Select, NativeSelect, Checkbox and Switch: no error until one is given', async () => {
+			for (const [kind, loc, , rest] of fields) {
+				const s = await state(loc);
+				if (s.invalid !== null || !same(s.described, rest)) throw new Error(`${kind} before an error: ${JSON.stringify(s)}`);
+			}
+		});
+		await c.step('an error sets aria-invalid, comes first in aria-describedby and reddens the boundary', async () => {
+			await c.press(page.getByRole('button', { name: 'Toggle field errors' }));
+			await wait(500);
+			for (const [kind, loc, message, rest] of fields) {
+				const s = await state(loc);
+				if (s.invalid !== 'true') throw new Error(`${kind}: aria-invalid is ${s.invalid}`);
+				if (!same(s.described, [message, ...rest])) throw new Error(`${kind}: aria-describedby reads ${JSON.stringify(s.described)}`);
+				if (s.edge !== s.messageColor) throw new Error(`${kind}: boundary ${s.edge} is not the message colour ${s.messageColor}`);
+				if (s.messageOpacity !== '1') throw new Error(`${kind}: the error stays at opacity ${s.messageOpacity}`);
+			}
+		});
+		await c.step('a cleared error takes aria-invalid, the message and the red boundary with it', async () => {
+			const reds = await Promise.all(fields.map(([, loc]) => state(loc).then((s) => s.messageColor)));
+			await c.press(page.getByRole('button', { name: 'Toggle field errors' }));
+			await wait(300);
+			for (const [i, [kind, loc, , rest]] of fields.entries()) {
+				const s = await state(loc);
+				if (s.invalid !== null || !same(s.described, rest)) throw new Error(`${kind} after the error cleared: ${JSON.stringify(s)}`);
+				if (s.edge === reds[i]) throw new Error(`${kind}: the boundary stayed red`);
+			}
+		});
+		await c.step('NativeSelect ref is the <select>', async () => {
+			await c.press(page.getByRole('button', { name: 'Read native ref' }));
+			await wait(100);
+			const tag = (await page.locator('#native-ref').textContent())?.trim();
+			if (tag !== 'SELECT') throw new Error('ref is ' + tag);
+			await c.press(page.getByRole('button', { name: 'Focus native ref' }));
+			await wait(100);
+			const focused = await page.evaluate(() => {
+				const a = document.activeElement;
+				return a?.tagName + ':' + document.querySelector(`label[for="${a?.id}"]`)?.textContent?.trim();
+			});
+			if (focused !== 'SELECT:Native') throw new Error('the ref focused ' + focused);
+		});
+		if (c.touch) {
+			await c.step('Select closeLabel names the sheet close button', async () => {
+				await c.press(page.getByRole('combobox', { name: 'Plan' }));
+				const close = page.getByRole('button', { name: 'Dismiss plans' });
+				await close.waitFor({ state: 'visible', timeout: 3000 });
+				if (await page.getByRole('button', { name: 'Close', exact: true }).count()) throw new Error('the default Close name is still there');
+				await c.press(close);
+				await close.waitFor({ state: 'hidden', timeout: 3000 });
+			});
+		}
 	},
 
 	async shell(c) {
 		const { page } = c;
-		if (c.touch) {
-			await c.step('drawer opens', async () => {
-				if (c.variant !== 'drawer') return;
-				await c.press(page.getByRole('button', { name: /menu|navigation/i }).first());
-				await page.getByRole('dialog').or(page.locator('.hp-app-shell-drawer')).first().waitFor({ state: 'visible', timeout: 3000 });
-				await wait(500);
-				await page.keyboard.press('Escape');
-				await wait(400);
+		if (c.variant === 'drawer') {
+			// From 600px the menu button is hidden, and the drawer never opens.
+			const menu = page.getByRole('button', { name: 'Menu', exact: true, includeHidden: true });
+			await c.step('closed drawer mounts no layers; menu button ARIA', async () => {
+				await assertClosedMountNothing(
+					c,
+					page.getByRole('button', { name: 'Mount shell' }),
+					page.locator('.hp-app-shell'),
+					'a shell with a closed drawer'
+				);
+				const aria = await attrs(menu, DIALOG_POPUP);
+				if (!same(aria, ['dialog', 'false', null])) throw new Error('closed menu button ARIA: ' + JSON.stringify(aria));
 			});
-		} else {
+			if (c.touch) {
+				await c.step('drawer first open: entrance, focus on Close, aria-controls names the drawer', () =>
+					assertFirstDialogOpen(c, menu)
+				);
+			}
+		}
+		if (!c.touch) {
 			await c.step('rail or sidebar renders', async () => {
 				await wait(500);
 			});
@@ -985,6 +1326,11 @@ const drivers = {
 
 // Extra variants of a scene: [query string, label].
 const variants = {
+	// Without a Toaster: toast() has nowhere to show and warns once.
+	toasts: [
+		['', ''],
+		['?toaster=none', 'bare']
+	],
 	shell: [
 		['?compact=bar&wide=sidebar', 'bar-sidebar'],
 		['?compact=drawer&wide=rail', 'drawer-rail']

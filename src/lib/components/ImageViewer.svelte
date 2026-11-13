@@ -64,6 +64,7 @@
 	import { duration, fade } from '../motion/index.js';
 	import Button from './Button.svelte';
 	import Spinner from './Spinner.svelte';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import { swipeDismiss } from './internal/swipe-dismiss.js';
 
 	/** The largest scale, of the size that fits the screen. */
@@ -165,6 +166,10 @@
 			phase = 'loading';
 		});
 	});
+
+	// Bits UI's portal and content mount on the first open, so a closed
+	// viewer costs only its trigger.
+	const layers = mountOnFirstOpen(() => open);
 
 	function close() {
 		open = false;
@@ -567,7 +572,7 @@
 	alt shows as a muted caption and Download stays. Nothing is announced on
 	zoom.
 -->
-<BitsDialog.Root bind:open>
+<BitsDialog.Root bind:open={() => layers.open, (value) => (open = value)}>
 	{#if trigger}
 		<BitsDialog.Trigger>
 			{#snippet child({ props })}
@@ -576,78 +581,80 @@
 		</BitsDialog.Trigger>
 	{/if}
 
-	<BitsDialog.Portal>
-		<BitsDialog.Content
-			forceMount
-			bind:ref
-			aria-labelledby={title ? titleId : undefined}
-			aria-label={title ? undefined : alt}
-			onOpenAutoFocus={openAutoFocus}
-			{...rest}
-		>
-			{#snippet child({
-				props: { interactOutsideBehavior: _outside, escapeKeydownBehavior: _escape, ...props },
-				open: shown
-			})}
-				{#if shown}
-					<div {...props} class={['hp-image-viewer', className]} {@attach keys} transition:fade>
-						<div class="hp-image-viewer-bar">
-							{#if title}
-								<h2 id={titleId} class="hp-image-viewer-title">{title}</h2>
-							{/if}
-							{#if downloadable}
-								<Button class="hp-image-viewer-download" onclick={download}>{downloadLabel}</Button>
-							{/if}
-							<Button
-								variant="tertiary"
-								icon
-								class="hp-image-viewer-close"
-								aria-label={closeLabel}
-								onclick={close}
-							>
-								<svg
-									viewBox="0 0 16 16"
-									fill="none"
-									stroke="currentColor"
-									stroke-width="1.5"
-									stroke-linecap="square"
-									aria-hidden="true"
+	{#if layers.mounted}
+		<BitsDialog.Portal>
+			<BitsDialog.Content
+				forceMount
+				bind:ref
+				aria-labelledby={title ? titleId : undefined}
+				aria-label={title ? undefined : alt}
+				onOpenAutoFocus={openAutoFocus}
+				{...rest}
+			>
+				{#snippet child({
+					props: { interactOutsideBehavior: _outside, escapeKeydownBehavior: _escape, ...props },
+					open: shown
+				})}
+					{#if shown}
+						<div {...props} class={['hp-image-viewer', className]} {@attach keys} transition:fade>
+							<div class="hp-image-viewer-bar">
+								{#if title}
+									<h2 id={titleId} class="hp-image-viewer-title">{title}</h2>
+								{/if}
+								{#if downloadable}
+									<Button class="hp-image-viewer-download" onclick={download}>{downloadLabel}</Button>
+								{/if}
+								<Button
+									variant="tertiary"
+									icon
+									class="hp-image-viewer-close"
+									aria-label={closeLabel}
+									onclick={close}
 								>
-									<path d="M3 3l10 10M13 3L3 13" />
-								</svg>
-							</Button>
+									<svg
+										viewBox="0 0 16 16"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										stroke-linecap="square"
+										aria-hidden="true"
+									>
+										<path d="M3 3l10 10M13 3L3 13" />
+									</svg>
+								</Button>
+							</div>
+							<div
+								class="hp-image-viewer-stage"
+								data-state={phase}
+								data-zoomed={scale > 1 ? '' : undefined}
+								data-gesture={gesture ?? undefined}
+								bind:this={stage}
+								{@attach gestures}
+								{@attach atRest ? swipeDismiss(close) : undefined}
+							>
+								{#key src}
+									<img
+										class="hp-image-viewer-image"
+										{src}
+										{alt}
+										draggable="false"
+										style:transform={transform(scale, x, y)}
+										bind:this={image}
+										{@attach watch}
+									/>
+								{/key}
+								{#if phase === 'loading'}
+									<div class="hp-image-viewer-spinner"><Spinner label={loadingLabel} /></div>
+								{:else if phase === 'error' && alt}
+									<span class="hp-image-viewer-caption hp-caption" aria-hidden="true">{alt}</span>
+								{/if}
+							</div>
 						</div>
-						<div
-							class="hp-image-viewer-stage"
-							data-state={phase}
-							data-zoomed={scale > 1 ? '' : undefined}
-							data-gesture={gesture ?? undefined}
-							bind:this={stage}
-							{@attach gestures}
-							{@attach atRest ? swipeDismiss(close) : undefined}
-						>
-							{#key src}
-								<img
-									class="hp-image-viewer-image"
-									{src}
-									{alt}
-									draggable="false"
-									style:transform={transform(scale, x, y)}
-									bind:this={image}
-									{@attach watch}
-								/>
-							{/key}
-							{#if phase === 'loading'}
-								<div class="hp-image-viewer-spinner"><Spinner label={loadingLabel} /></div>
-							{:else if phase === 'error' && alt}
-								<span class="hp-image-viewer-caption hp-caption" aria-hidden="true">{alt}</span>
-							{/if}
-						</div>
-					</div>
-				{/if}
-			{/snippet}
-		</BitsDialog.Content>
-	</BitsDialog.Portal>
+					{/if}
+				{/snippet}
+			</BitsDialog.Content>
+		</BitsDialog.Portal>
+	{/if}
 </BitsDialog.Root>
 
 <style>

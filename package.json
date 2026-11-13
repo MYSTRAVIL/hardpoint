@@ -1,6 +1,6 @@
 {
 	"name": "@mystravil/hardpoint",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "Hardpoint: a Svelte 5 design system on Bits UI. AMOLED black, titanium ink, Geist, square solid blocks, banded mono tables, opt-in expressive motion, dark and light themes.",
 	"license": "MIT",
 	"author": "MYSTRAVIL",
@@ -53,7 +53,7 @@
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
 		"prepack": "svelte-kit sync && svelte-package && publint",
-		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-lib-imports.mjs",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-lib-imports.mjs && node scripts/check-lib-styles.mjs",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"shot": "node scripts/shot.mjs",
 		"audit": "node scripts/audit.mjs",

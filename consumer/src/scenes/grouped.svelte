@@ -16,5 +16,5 @@
 <main class="page">
 	<Select label="City" {items} bind:value={sel} />
 	<Combobox label="Place" {items} bind:value={combo} placeholder="Search" />
-	<NativeSelect label="Native" options={items} bind:value={native} />
+	<NativeSelect label="Native" {items} bind:value={native} />
 </main>

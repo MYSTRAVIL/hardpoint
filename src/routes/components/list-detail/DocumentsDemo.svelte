@@ -147,7 +147,7 @@
 					</section>
 				{:else}
 					<EmptyState title="No matches" description="No document title contains “{query.trim()}”.">
-						{#snippet action()}
+						{#snippet actions()}
 							<Button onclick={() => (query = '')}>Clear filter</Button>
 						{/snippet}
 					</EmptyState>

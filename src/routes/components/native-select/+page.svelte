@@ -1,19 +1,20 @@
 <script lang="ts">
-	import NativeSelect, { type NativeSelectOption } from '#lib/components/NativeSelect.svelte';
+	import Button from '#lib/components/Button.svelte';
+	import NativeSelect, { type NativeSelectItem } from '#lib/components/NativeSelect.svelte';
 
-	const sortOptions: NativeSelectOption[] = [
+	const sortOptions: NativeSelectItem[] = [
 		{ value: 'newest', label: 'Newest first' },
 		{ value: 'oldest', label: 'Oldest first' },
 		{ value: 'name', label: 'Name, A to Z' }
 	];
-	const sizeOptions: NativeSelectOption<number>[] = [10, 25, 50, 100].map((n) => ({ value: n, label: String(n) }));
-	const zoneOptions: NativeSelectOption[] = [
+	const sizeOptions: NativeSelectItem<number>[] = [10, 25, 50, 100].map((n) => ({ value: n, label: String(n) }));
+	const zoneOptions: NativeSelectItem[] = [
 		{ value: 'utc', label: 'Coordinated Universal Time (UTC)' },
 		{ value: 'cet', label: 'Central European Time (UTC+1)' },
 		{ value: 'ist', label: 'India Standard Time (UTC+5:30)' },
 		{ value: 'jst', label: 'Japan Standard Time (UTC+9)', disabled: true }
 	];
-	const paperOptions: NativeSelectOption[] = [
+	const paperOptions: NativeSelectItem[] = [
 		{ value: 'document', label: 'Match the document' },
 		{ value: 'a3', label: 'A3', group: 'ISO' },
 		{ value: 'a4', label: 'A4', group: 'ISO' },
@@ -22,7 +23,7 @@
 		{ value: 'legal', label: 'Legal', group: 'North American' },
 		{ value: 'tabloid', label: 'Tabloid', group: 'North American' }
 	];
-	const officeOptions: NativeSelectOption[] = [
+	const officeOptions: NativeSelectItem[] = [
 		{ value: 'bogota', label: 'Bogotá', group: 'Americas' },
 		{ value: 'toronto', label: 'Toronto', group: 'Americas' },
 		{ value: 'berlin', label: 'Berlin', group: 'Europe' },
@@ -39,6 +40,31 @@
 	let theme = $state('dark');
 	let paper = $state('a4');
 	let office = $state('lisbon');
+
+	// The live form: the page validates, the select shows the error it is
+	// given. Validate on submit, and once a select shows an error, check it
+	// again on change so the error clears as soon as it is fixed.
+	const teamItems: NativeSelectItem[] = [
+		{ value: '', label: 'Choose a team' },
+		{ value: 'design', label: 'Design' },
+		{ value: 'platform', label: 'Platform' },
+		{ value: 'support', label: 'Support' }
+	];
+	let team = $state('');
+	let teamError = $state<string>();
+	let teamRef = $state<HTMLSelectElement | null>(null);
+	let assigned = $state('');
+
+	function checkTeam() {
+		teamError = team ? undefined : 'Choose the team that owns the project.';
+	}
+	function submit(event: SubmitEvent) {
+		event.preventDefault();
+		checkTeam();
+		assigned = '';
+		if (teamError) teamRef?.focus();
+		else assigned = `Project assigned to ${teamItems.find((t) => t.value === team)?.label}.`;
+	}
 </script>
 
 <svelte:head>
@@ -65,7 +91,21 @@
 				or 1200px up.
 			</li>
 			<li>
-				<strong>Choices.</strong> Pass <code>options</code> as
+				<strong>Hint and error.</strong> <code>hint</code> shows guidance under the well in the muted
+				ink. <code>error</code> shows a message under it with an icon, sets
+				<code>aria-invalid</code> and turns the boundary red. Both are linked by
+				<code>aria-describedby</code>, the error first, then the hint, then your own. Say how to fix the
+				problem. An error that appears after the first render fades in with the red boundary over
+				<code>--dur-message</code> (120ms); one that clears goes at once. With
+				<code>labelBeside</code> the messages stay under the well.
+			</li>
+			<li>
+				<strong>Validation stays with the app.</strong> The select shows the error it is given.
+				<code>bind:ref</code> holds the <code>&lt;select&gt;</code>, so on submit the app can focus the
+				first field with an error. Never disable the submit button to signal errors.
+			</li>
+			<li>
+				<strong>Choices.</strong> Pass <code>items</code> as
 				<code>{'{ value, label, group, disabled }'}</code>, or <code>&lt;option&gt;</code> elements as
 				children. Values keep their type, so numbers stay numbers. <code>bind:value</code> holds the
 				choice.
@@ -92,7 +132,7 @@
 		<h2 id="above" class="hp-section-title">Label above</h2>
 		<p class="lede">The default, for forms and for filters on phones.</p>
 		<div class="fields">
-			<NativeSelect label="Sort by" options={sortOptions} bind:value={sort} />
+			<NativeSelect label="Sort by" items={sortOptions} bind:value={sort} />
 			<NativeSelect label="Language" bind:value={language}>
 				<option value="en">English</option>
 				<option value="de">Deutsch</option>
@@ -112,7 +152,7 @@
 			numbers.
 		</p>
 		<div class="row">
-			<NativeSelect label="Per page" labelBeside options={sizeOptions} bind:value={pageSize} />
+			<NativeSelect label="Per page" labelBeside items={sizeOptions} bind:value={pageSize} />
 		</div>
 		<p class="value hp-caption"><span class="hp-mono">pageSize = {pageSize}</span></p>
 	</section>
@@ -144,12 +184,67 @@
 			see the group labels in the system picker.
 		</p>
 		<div class="fields">
-			<NativeSelect label="Paper size" options={paperOptions} bind:value={paper} />
-			<NativeSelect label="Office" options={officeOptions} bind:value={office} />
+			<NativeSelect label="Paper size" items={paperOptions} bind:value={paper} />
+			<NativeSelect label="Office" items={officeOptions} bind:value={office} />
 		</div>
 		<p class="value hp-caption">
 			<span class="hp-mono">paper = '{paper}'</span> · <span class="hp-mono">office = '{office}'</span>
 		</p>
+	</section>
+
+	<section aria-labelledby="messages">
+		<h2 id="messages" class="hp-section-title">Hint and error</h2>
+		<p class="lede">
+			The hint sits under the well in the muted ink. The error adds an icon and a message, and the
+			boundary turns red. The hint stays. A disabled select keeps its quiet boundary.
+		</p>
+		<div class="form">
+			<NativeSelect
+				label="Time zone"
+				items={zoneOptions}
+				value="cet"
+				hint="Reminders arrive in this zone."
+			/>
+			<NativeSelect
+				label="Paper size"
+				items={paperOptions}
+				value="document"
+				hint="Sets the page size of exports."
+				error="Choose a size; Match the document needs a saved file."
+			/>
+			<NativeSelect
+				label="Region"
+				items={[{ value: '', label: 'Choose a region' }, { value: 'eu', label: 'Europe' }]}
+				error="Choose a region."
+				disabled
+			/>
+			<NativeSelect label="Per page" labelBeside items={sizeOptions} value={25} hint="Rows in the table." error="Choose 50 or more for this view." />
+		</div>
+	</section>
+
+	<section aria-labelledby="form">
+		<h2 id="form" class="hp-section-title">In a form</h2>
+		<p class="lede">
+			Send the form without choosing: the error appears and the select takes focus. Choose a team and
+			it clears.
+		</p>
+		<form class="form" novalidate onsubmit={submit}>
+			<NativeSelect
+				label="Team"
+				name="team"
+				items={teamItems}
+				required
+				hint="The team that owns the project."
+				error={teamError}
+				bind:value={team}
+				bind:ref={teamRef}
+				onchange={() => teamError && checkTeam()}
+			/>
+			<div class="actions">
+				<Button type="submit" variant="primary">Assign project</Button>
+			</div>
+			<p class="assigned hp-caption" role="status">{assigned}</p>
+		</form>
 	</section>
 
 	<section aria-labelledby="states">
@@ -159,7 +254,7 @@
 			disabled select takes muted text. Press <kbd>Tab</kbd> to see the focus contour.
 		</p>
 		<div class="fields">
-			<NativeSelect label="Time zone" options={zoneOptions} bind:value={zone} />
+			<NativeSelect label="Time zone" items={zoneOptions} bind:value={zone} />
 			<NativeSelect label="Region" disabled>
 				<option>Europe</option>
 			</NativeSelect>
@@ -213,6 +308,20 @@
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--space-3);
+	}
+	.form {
+		display: grid;
+		gap: var(--space-6);
+		max-width: 424px;
+	}
+	.actions {
+		display: flex;
+	}
+	/* The status line stays rendered, so a screen reader announces the
+	   text when it appears. */
+	.assigned {
+		margin: 0;
+		color: var(--muted);
 	}
 	@media (min-width: 600px) {
 		.filters {

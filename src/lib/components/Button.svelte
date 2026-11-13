@@ -4,36 +4,71 @@
 
 	export type ButtonVariant = 'primary' | 'secondary' | 'tertiary';
 
+	/** `danger` (status red) marks an action that destroys or removes something. */
+	export type ButtonTone = 'danger';
+
 	type ButtonOwnProps = {
-		/**
-		 * `primary`: solid titanium block, for the view's one group of solid
-		 * blocks. `secondary` (default): outlined. `tertiary`: caps label only.
-		 */
-		variant?: ButtonVariant;
 		/** Ends the label in a small ▸: the button opens another view. */
 		opens?: boolean;
-		/**
-		 * A square, icon-only button (height and width are `--control-height`).
-		 * It has no visible label, so it needs an accessible name: pass
-		 * `aria-label`.
-		 */
-		icon?: boolean;
 		/** The `<button>`, or the `<a>` when `href` is set. */
 		ref?: HTMLElement | null;
 		children?: Snippet;
 	};
+
+	type ButtonLook =
+		| {
+				/**
+				 * `primary`: solid titanium block, for the view's one group of solid
+				 * blocks. `secondary` (default): outlined. `tertiary`: caps label only.
+				 */
+				variant?: ButtonVariant;
+				tone?: never;
+		  }
+		| {
+				variant?: 'secondary' | 'tertiary';
+				/**
+				 * `danger` for an action that destroys or removes something: the
+				 * label turns status red, and a secondary button's outline with it.
+				 * Hover, press, focus and disabled look as they do without it. A
+				 * primary button takes no tone. Say what is destroyed in the label
+				 * too, so colour never carries the meaning alone.
+				 */
+				tone: ButtonTone;
+		  };
+
+	type ButtonName =
+		| {
+				icon?: false;
+		  }
+		| {
+				/**
+				 * A square, icon-only button (height and width are `--control-height`).
+				 * It has no visible label, so it needs an accessible name:
+				 * `aria-label` or `aria-labelledby`.
+				 */
+				icon: true;
+				'aria-label': string;
+				'aria-labelledby'?: string;
+		  }
+		| {
+				icon: true;
+				'aria-label'?: string;
+				'aria-labelledby': string;
+		  };
+
+	type ButtonCommonProps = ButtonOwnProps & ButtonLook & ButtonName;
 
 	/**
 	 * An `<a>` when `href` is set, a `<button>` otherwise. Attributes and
 	 * handlers not listed here go to the element.
 	 */
 	export type ButtonProps =
-		| (ButtonOwnProps &
+		| (ButtonCommonProps &
 				Omit<HTMLButtonAttributes, 'children' | 'type' | 'href'> & {
 					type?: HTMLButtonAttributes['type'];
 					href?: never;
 				})
-		| (ButtonOwnProps &
+		| (ButtonCommonProps &
 				Omit<HTMLAnchorAttributes, 'children' | 'type' | 'href'> & {
 					href: HTMLAnchorAttributes['href'];
 					type?: never;
@@ -44,6 +79,7 @@
 <script lang="ts">
 	let {
 		variant = 'secondary',
+		tone,
 		opens = false,
 		icon = false,
 		class: className,
@@ -70,6 +106,7 @@
 		bind:this={ref}
 		class={['hp-button', 'hp-label', className]}
 		data-variant={variant}
+		data-tone={tone}
 		data-opens={opens || undefined}
 		data-icon={icon || undefined}
 		{disabled}
@@ -82,6 +119,7 @@
 		bind:this={ref}
 		class={['hp-button', 'hp-label', className]}
 		data-variant={variant}
+		data-tone={tone}
 		data-opens={opens || undefined}
 		data-icon={icon || undefined}
 		href={disabled ? undefined : href}
@@ -134,6 +172,19 @@
 	/* The label alone. */
 	:global(.hp-button[data-variant='tertiary']) {
 		background: transparent;
+	}
+
+	/* ---- Danger tone: secondary and tertiary. Only the ink changes: hover
+	   and press keep their fills, focus its contour. A disabled button
+	   ignores the tone. ------------------------------------------------ */
+
+	:global(.hp-button[data-variant='secondary'][data-tone='danger']:not(:disabled):not([aria-disabled='true'])) {
+		border-color: var(--danger);
+		color: var(--danger);
+	}
+	/* The hover underline takes the label's colour, so it is red too. */
+	:global(.hp-button[data-variant='tertiary'][data-tone='danger']:not(:disabled):not([aria-disabled='true'])) {
+		color: var(--danger);
 	}
 
 	/* ---- Opens another view: a small ▸ drawn in CSS ------------------ */

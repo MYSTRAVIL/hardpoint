@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from '#lib/components/Button.svelte';
 	import Switch from '#lib/components/Switch.svelte';
 
 	let completed = $state(false);
@@ -12,6 +13,27 @@
 		{ id: 'PRJ-0163', name: 'Office move' }
 	];
 	let watching = $state<Record<string, boolean>>({ 'PRJ-0142': true, 'PRJ-0157': false, 'PRJ-0163': false });
+
+	// A switch in a form: the page validates, the switch shows the error it
+	// is given. On submit, focus goes to the switch; turning it on clears
+	// the error.
+	let backups = $state(false);
+	let backupsError = $state<string>();
+	let backupsRef = $state<HTMLElement | null>(null);
+	let started = $state('');
+	$effect(() => {
+		if (backups) backupsError = undefined;
+	});
+	function submitBackups(event: SubmitEvent) {
+		event.preventDefault();
+		started = '';
+		if (!backups) {
+			backupsError = 'Turn on backups before you start the migration.';
+			backupsRef?.focus();
+			return;
+		}
+		started = 'Migration started.';
+	}
 </script>
 
 <svelte:head>
@@ -35,8 +57,17 @@
 				<strong>Label.</strong> <code>label</code> names the setting, as written, never in caps. It fills
 				the line and the switch sits at its end, as in omp-remote’s settings rows. Pressing anywhere on
 				the label turns the switch on or off. <code>hint</code> adds a muted line under the label that is
-				read out as the switch’s description. A switch without a visible label needs an
-				<code>aria-label</code>.
+				read out as the switch’s description. Every switch needs a name, and the types ask for exactly
+				one of <code>label</code>, <code>aria-label</code> or <code>aria-labelledby</code>: a switch
+				without a visible label takes an <code>aria-label</code>.
+			</li>
+			<li>
+				<strong>Error.</strong> <code>error</code> shows a message with an icon 8px under the row, sets
+				<code>aria-invalid</code> on the button and turns the track’s edge red; a switch has one
+				boundary, as a text field’s well. The error is linked by <code>aria-describedby</code>, before
+				the hint and your own ids. Say how to fix the problem. An error that appears after the first
+				render fades in with the red edge over <code>--dur-message</code> (120ms); one that clears goes
+				at once. The app validates; on submit it focuses the switch through <code>bind:ref</code>.
 			</li>
 			<li>
 				<strong>Value.</strong> <code>bind:checked</code> holds the state. <code>name</code> and
@@ -86,6 +117,37 @@
 			<span class="hp-mono">email = {email}</span> ·
 			<span class="hp-mono">reminders = {reminders}</span>
 		</p>
+	</section>
+
+	<section aria-labelledby="error">
+		<h2 id="error" class="hp-section-title">Hint and error</h2>
+		<p class="lede">
+			The error sits 8px under the row, under the hint if there is one, and the track’s edge turns red,
+			on or off. A disabled switch keeps its quiet boundary. Start the migration with backups off: the
+			error appears and the switch takes focus. Turn it on and the error clears.
+		</p>
+		<div class="settings">
+			<Switch
+				label="Public profile"
+				hint="Anyone with the link can see your projects."
+				error="Your workspace does not allow public profiles."
+				checked
+			/>
+			<Switch label="Two-step sign-in" error="Your workspace requires it." disabled />
+		</div>
+		<form class="form" novalidate onsubmit={submitBackups}>
+			<Switch
+				label="Back up before migrating"
+				hint="Keeps a copy for 30 days."
+				error={backupsError}
+				bind:checked={backups}
+				bind:ref={backupsRef}
+			/>
+			<div class="actions">
+				<Button type="submit" variant="primary">Start migration</Button>
+			</div>
+			<p class="sent hp-dense" role="status">{started}</p>
+		</form>
 	</section>
 
 	<section aria-labelledby="unlabelled">
@@ -145,6 +207,23 @@
 		display: grid;
 		gap: var(--space-3);
 		max-width: 480px;
+	}
+
+	/* The settings, a button and the status line, more than twice as far
+	   apart as the rows. */
+	.form {
+		display: grid;
+		gap: var(--space-6);
+		max-width: 480px;
+		margin-top: var(--space-6);
+	}
+	.actions {
+		display: flex;
+	}
+	/* The status region stays rendered, so a screen reader announces the
+	   text when it appears. */
+	.sent {
+		margin: 0;
 	}
 
 	.projects {

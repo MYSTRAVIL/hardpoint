@@ -79,9 +79,9 @@
 				of 20 are lit.
 			</li>
 			<li>
-				<strong>Label.</strong> <code>label</code> is a line above the bar, as written, never in caps,
-				because it often holds a file or project name. It names the progress bar. Without it, name the
-				bar with <code>aria-label</code> or <code>aria-labelledby</code>.
+				<strong>Name.</strong> A progress bar needs an accessible name, and the types require exactly one
+				of <code>label</code>, <code>aria-label</code> and <code>aria-labelledby</code>. <code>label</code>
+				is a line above the bar, as written, never in caps, because it often holds a file or project name.
 			</li>
 			<li>
 				<strong>Value in words.</strong> <code>valueText</code>, such as <code>3 of 12 files</code>, ends

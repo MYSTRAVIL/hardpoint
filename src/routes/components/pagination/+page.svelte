@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import NativeSelect from '#lib/components/NativeSelect.svelte';
 	import Pagination from '#lib/components/Pagination.svelte';
 
@@ -127,7 +128,7 @@
 			page moves back to 2.
 		</p>
 		<div class="filter">
-			<NativeSelect label="Owner" labelBeside bind:value={owner} options={ownerOptions} />
+			<NativeSelect label="Owner" labelBeside bind:value={owner} items={ownerOptions} />
 		</div>
 		<div class="pager-demo">
 			<span class="hp-caption state">{fileCount} files, 10 per page</span>
@@ -152,6 +153,14 @@
 				nextLabel="Older activity"
 			/>
 		</div>
+		<LabelsTable
+			rows={[
+				{ prop: 'label', value: 'Pages', shows: 'The name of the navigation landmark.' },
+				{ prop: 'pageLabel', value: 'Page', shows: 'The caps label before the page figure.' },
+				{ prop: 'previousLabel', value: 'Previous page', shows: 'The accessible name of the previous step.' },
+				{ prop: 'nextLabel', value: 'Next page', shows: 'The accessible name of the next step.' }
+			]}
+		/>
 	</section>
 </main>
 

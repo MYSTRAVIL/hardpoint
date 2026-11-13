@@ -1,29 +1,63 @@
 <script lang="ts" module>
 	import { Checkbox as BitsCheckbox } from 'bits-ui';
 
+	/**
+	 * The box's accessible name: exactly one of a visible `label`, an
+	 * `aria-label` or an `aria-labelledby`. The types allow one.
+	 */
+	type CheckboxName =
+		| {
+				/**
+				 * The text beside the box, as written (never caps). Pressing it, or
+				 * anywhere on the box's row, toggles the box.
+				 */
+				label: string;
+				'aria-label'?: never;
+				'aria-labelledby'?: never;
+		  }
+		| {
+				label?: never;
+				/** The accessible name of a box with no visible label, such as a table row's. */
+				'aria-label': string;
+				'aria-labelledby'?: never;
+		  }
+		| {
+				label?: never;
+				'aria-label'?: never;
+				/** The id of the element that names the box. */
+				'aria-labelledby': string;
+		  };
+
 	/** Attributes and handlers not listed here go to the checkbox button. */
-	export type CheckboxProps = Omit<BitsCheckbox.RootProps, 'child' | 'children' | 'ref'> & {
-		/**
-		 * The text beside the box, as written (never caps). Pressing it, or
-		 * anywhere on the box's row, toggles the box. Without it, give the box
-		 * an accessible name with `aria-label`.
-		 */
-		label?: string;
-		/**
-		 * A Tag after the label, such as "Recommended": a short fixed string the
-		 * app defines, set in caps. It is part of the box's accessible name and
-		 * shows only with a `label`.
-		 */
-		tag?: string;
-		/** A second line in `--muted` under the label, read out as the box's description. */
-		hint?: string;
-		/** The checkbox button. */
-		ref?: HTMLElement | null;
-	};
+	export type CheckboxProps = Omit<
+		BitsCheckbox.RootProps,
+		'child' | 'children' | 'ref' | 'aria-label' | 'aria-labelledby'
+	> &
+		CheckboxName & {
+			/**
+			 * A Tag after the label, such as "Recommended": a short fixed string the
+			 * app defines, set in caps. It is part of the box's accessible name and
+			 * shows only with a `label`.
+			 */
+			tag?: string;
+			/** A second line in `--muted` under the label, read out as the box's description. */
+			hint?: string;
+			/**
+			 * The error to show under the row, with an icon, linked by
+			 * `aria-describedby`; it sets `aria-invalid`, and the box's edge turns
+			 * `--danger`. Say how to fix the problem. The app validates; the box
+			 * shows what it is given.
+			 */
+			error?: string;
+			/** The checkbox button. */
+			ref?: HTMLElement | null;
+		};
 </script>
 
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import Tag from './Tag.svelte';
+	import { fadeIn } from './internal/fade-in.js';
 
 	const uid = $props.id();
 
@@ -33,15 +67,40 @@
 		label,
 		tag,
 		hint,
+		error,
 		id = uid,
 		ref = $bindable(null),
 		class: className,
 		'aria-describedby': describedBy,
+		'aria-invalid': ariaInvalid,
 		...rest
 	}: CheckboxProps = $props();
 
 	const hintId = $derived(`${id}-hint`);
-	const describedByIds = $derived([hint ? hintId : null, describedBy].filter(Boolean).join(' ') || undefined);
+	const errorId = $derived(`${id}-error`);
+	// The error first, so a screen reader reads it before the hint.
+	const describedByIds = $derived(
+		[error ? errorId : undefined, hint ? hintId : undefined, describedBy].filter(Boolean).join(' ') ||
+			undefined
+	);
+
+	// ---- Short motion: the error (BRIEF, --dur-message) --------------------
+
+	// As in TextField: an error that appears after the first render fades in
+	// from 0 over --dur-message, and the box's edge fades to --danger with it
+	// (the CSS below). An error that clears goes at once, and so does the red
+	// edge. A box that renders with an error shows it at once.
+	let root: HTMLDivElement | null = $state(null);
+	let errorShown = untrack(() => !!error);
+	$effect(() => {
+		const shown = !!error;
+		untrack(() => {
+			const appeared = shown && !errorShown;
+			errorShown = shown;
+			const message = appeared ? root?.querySelector(':scope > .error') : null;
+			if (message) fadeIn(message, '--dur-message');
+		});
+	});
 </script>
 
 <!--
@@ -52,9 +111,17 @@
 	checked. Inside a CheckboxGroup, give it a `value`. Attributes, handlers
 	and `class` go to the button.
 -->
-<div class="hp-checkbox">
+<div bind:this={root} class="hp-checkbox" data-invalid={error ? '' : undefined}>
 	<span class="control">
-		<BitsCheckbox.Root bind:checked bind:indeterminate bind:ref {id} aria-describedby={describedByIds} {...rest}>
+		<BitsCheckbox.Root
+			bind:checked
+			bind:indeterminate
+			bind:ref
+			{id}
+			aria-describedby={describedByIds}
+			aria-invalid={error ? true : ariaInvalid}
+			{...rest}
+		>
 			{#snippet child({ props })}
 				<button {...props} class={['box', className]}>
 					<svg class="mark mixed" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg>
@@ -70,6 +137,17 @@
 	{/if}
 	{#if hint}
 		<p class="hint hp-caption" id={hintId}>{hint}</p>
+	{/if}
+	{#if error}
+		<p class="error hp-caption" id={errorId}>
+			<span class="icon" aria-hidden="true">
+				<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor">
+					<path d="M1.5 1.5h13v13h-13z" />
+					<path d="M8 4v4M8 10v2" stroke-width="2" />
+				</svg>
+			</span>
+			<span>{error}</span>
+		</p>
 	{/if}
 </div>
 
@@ -193,6 +271,44 @@
 		color: var(--muted);
 	}
 
+	/* The error: TextField's message, 8px under the whole row (the hint
+	   included), clear of the box's focus contour. It spans the box's
+	   column and the label's. */
+	.error {
+		grid-column: 1 / -1;
+		display: flex;
+		gap: var(--space-2);
+		margin: var(--space-2) 0 0;
+		color: var(--danger);
+	}
+	/* One line box high, so the icon centres on the first line of the
+	   message however it wraps. */
+	.icon {
+		display: flex;
+		flex: none;
+		align-items: center;
+		height: 1lh;
+	}
+	.icon svg {
+		display: block;
+	}
+
+	/* Invalid: the box's edge turns --danger (5.9:1 on black), never alone:
+	   the icon and the message say what is wrong. A single box has one
+	   boundary, as a TextField's well, so it carries the colour (a group's
+	   boxes stay neutral). Keyed on the root's data-invalid, set by `error`,
+	   so an aria-invalid the app passes without a message draws no red edge.
+	   The edge fades to --danger over --dur-message with the message; the
+	   transition belongs to this rule, so the edge goes back at once when
+	   the error clears. Danger wins over the checked edge and over hover. */
+	[data-invalid] .box {
+		border-color: var(--danger);
+		transition: border-color var(--dur-message) var(--settle);
+	}
+	[data-invalid] .box:disabled {
+		border-color: var(--border);
+	}
+
 	/* ---- Hover: fine pointers only, over any part of the row ----------- */
 
 	@media (hover: hover) and (pointer: fine) {
@@ -201,10 +317,15 @@
 				background-color var(--dur-hover) var(--settle),
 				border-color var(--dur-hover) var(--settle);
 		}
+		[data-invalid] .box {
+			transition:
+				background-color var(--dur-hover) var(--settle),
+				border-color var(--dur-message) var(--settle);
+		}
 		.hp-checkbox:has(> label:hover, .box:hover) .box:not(:disabled) {
 			background-color: var(--surface-hover);
 		}
-		.hp-checkbox:has(> label:hover, .box:hover) .box[data-state='unchecked']:not(:disabled) {
+		.hp-checkbox:not([data-invalid]):has(> label:hover, .box:hover) .box[data-state='unchecked']:not(:disabled) {
 			border-color: var(--muted);
 		}
 		.hp-checkbox:has(> label:active, .box:active) .box:not(:disabled) {

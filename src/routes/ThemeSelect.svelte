@@ -3,7 +3,7 @@
 	import { NativeSelect, type NativeSelectBreakpoint } from '#lib';
 	import { readTheme, setTheme, themeOptions, type Theme } from './theme';
 
-	let { labelBeside = false }: { labelBeside?: boolean | NativeSelectBreakpoint } = $props();
+	let { labelBeside = false, hint }: { labelBeside?: boolean | NativeSelectBreakpoint; hint?: string } = $props();
 
 	// The server and the first client render show Dark; the saved choice
 	// lands on mount. The page itself is already themed by src/app.html.
@@ -17,7 +17,8 @@
 <NativeSelect
 	label="Theme"
 	{labelBeside}
-	options={themeOptions}
+	{hint}
+	items={themeOptions}
 	value={theme}
 	onchange={(event) => {
 		theme = event.currentTarget.value as Theme;

@@ -1,6 +1,23 @@
 <script lang="ts" module>
 	import { Progress as BitsProgress } from 'bits-ui';
 
+	/**
+	 * The bar's accessible name: a `label` line above the bar, an `aria-label`
+	 * or an `aria-labelledby`. Exactly one.
+	 */
+	type ProgressName =
+		| {
+				/**
+				 * A line above the bar saying what is in progress, as written (never
+				 * caps: it may hold a file or project name). It names the progress bar.
+				 */
+				label: string;
+				'aria-label'?: never;
+				'aria-labelledby'?: never;
+		  }
+		| { label?: never; 'aria-label': string; 'aria-labelledby'?: never }
+		| { label?: never; 'aria-label'?: never; 'aria-labelledby': string };
+
 	export type ProgressProps = Omit<BitsProgress.RootProps, 'value' | 'child' | 'children'> & {
 		/**
 		 * How far the work has got, from `min` to `max`. Pass the real figure
@@ -19,18 +36,12 @@
 		 */
 		segments?: number;
 		/**
-		 * A line above the bar saying what is in progress, as written (never
-		 * caps: it may hold a file or project name). It names the progress
-		 * bar; without it, pass `aria-label` or `aria-labelledby`.
-		 */
-		label?: string;
-		/**
 		 * The value in words, such as `3 of 12 files`. Shown at the end of the
 		 * label line and read as `aria-valuetext`. Without it both give the
 		 * percentage done, rounded down.
 		 */
 		valueText?: string;
-	};
+	} & ProgressName;
 </script>
 
 <script lang="ts">

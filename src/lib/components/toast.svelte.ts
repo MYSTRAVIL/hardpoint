@@ -1,4 +1,4 @@
-import { untrack } from 'svelte';
+import { tick, untrack } from 'svelte';
 
 /** The one button a toast may carry. Running it dismisses the toast. */
 export type ToastAction = {
@@ -51,6 +51,7 @@ class ToastSlot {
 	#remaining = 0;
 	#since = 0;
 	#lastId = 0;
+	#warned = false;
 
 	/** Shows a toast in place of the one on screen and starts its timer again. */
 	show(message: string, { action, duration }: ToastOptions): ToastHandle {
@@ -59,7 +60,24 @@ class ToastSlot {
 		this.current = { id, message, action };
 		this.#remaining = Math.min(duration ?? (action ? TOAST_ACTION_MS : TOAST_MS), MAX_DELAY);
 		this.#run();
+		this.#warnWithoutToaster();
 		return { dismiss: () => this.dismiss(id) };
+	}
+
+	/**
+	 * Without a mounted Toaster the message goes nowhere. Warn once per page
+	 * lifetime, after the pending updates ran: a Toaster mounted in the same
+	 * task registers by then.
+	 */
+	#warnWithoutToaster() {
+		if (this.#warned) return;
+		void tick().then(() => {
+			if (this.#warned || untrack(() => this.#toasters.length) > 0) return;
+			this.#warned = true;
+			console.warn(
+				'Hardpoint: toast() was called but no <Toaster /> is mounted, so the message is not shown. Mount <Toaster /> once in the app root.'
+			);
+		});
 	}
 
 	/** Removes the toast on screen, or only toast `id` when given. */
@@ -117,7 +135,8 @@ export const toastSlot = new ToastSlot();
 /**
  * Confirms what just happened in a toast at the bottom of the screen. A new
  * toast replaces the one on screen. Plain text only; errors stay inline,
- * next to where things broke. Needs a `<Toaster />` mounted once in the app.
+ * next to where things broke. Needs a `<Toaster />` mounted once in the app;
+ * without one the message is lost and the first call logs a console warning.
  */
 export function toast(message: string, options: ToastOptions = {}): ToastHandle {
 	return toastSlot.show(message, options);

@@ -4,6 +4,23 @@
 	/** A status hue for the bar: `ok` fine, `warn` needs attention, `danger` bad. */
 	export type MeterTone = 'ok' | 'warn' | 'danger';
 
+	/**
+	 * The meter's accessible name: a `label` line above the bar, an
+	 * `aria-label` or an `aria-labelledby`. Exactly one.
+	 */
+	type MeterName =
+		| {
+				/**
+				 * A line above the bar saying what is measured, as written (never
+				 * caps: it may hold a name). It names the meter.
+				 */
+				label: string;
+				'aria-label'?: never;
+				'aria-labelledby'?: never;
+		  }
+		| { label?: never; 'aria-label': string; 'aria-labelledby'?: never }
+		| { label?: never; 'aria-label'?: never; 'aria-labelledby': string };
+
 	export type MeterProps = Omit<BitsMeter.RootProps, 'value' | 'child' | 'children'> & {
 		/**
 		 * The measurement, from `min` to `max`. Pass the real figure each time
@@ -22,12 +39,6 @@
 		 * shows more than the value.
 		 */
 		segments?: number;
-		/**
-		 * A line above the bar saying what is measured, as written (never
-		 * caps: it may hold a name). It names the meter; without it, pass
-		 * `aria-label` or `aria-labelledby`.
-		 */
-		label?: string;
 		/**
 		 * The value in words, such as `4.2 of 5 GB`. Shown at the end of the
 		 * label line and read as `aria-valuetext`. Without it both give the
@@ -63,7 +74,7 @@
 		 * ids follow it.
 		 */
 		detail?: string;
-	};
+	} & MeterName;
 </script>
 
 <script lang="ts">

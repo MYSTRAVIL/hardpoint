@@ -66,6 +66,12 @@
 		emptyText?: string;
 		/** The sheet's close button name. */
 		closeLabel?: string;
+		/**
+		 * Shown in the sheet's search input below 600px when `placeholder` is
+		 * empty, so the box reads as "type to filter". Say it in the app's
+		 * language.
+		 */
+		searchPlaceholder?: string;
 		/** The field control's id; the label points at it. */
 		id?: string;
 		/** The field control: the text input from 600px, the button below. */
@@ -101,6 +107,7 @@
 		filter,
 		emptyText = 'No matches',
 		closeLabel = 'Close',
+		searchPlaceholder = 'Search',
 		id = `${uid}-field`,
 		ref = $bindable(null),
 		item: itemContent,
@@ -460,7 +467,7 @@
 							>
 								<div class="hp-combobox-search" onkeydowncapture={() => (keyboard = true)}>
 									<BitsCombobox.Input
-										{placeholder}
+										placeholder={placeholder || searchPlaceholder}
 										autocomplete="off"
 										spellcheck={false}
 										aria-labelledby={sheetTitleId}
@@ -473,6 +480,7 @@
 										{/snippet}
 									</BitsCombobox.Input>
 								</div>
+								{@render status()}
 								{@render empty(true)}
 								<div
 									{...props}
@@ -492,6 +500,10 @@
 			{/if}
 		{/if}
 	</BitsCombobox.Root>
+
+	{#if wide.current || !layers.open}
+		{@render status()}
+	{/if}
 
 	{#if hint || error}
 		<div class="hp-combobox-messages">
@@ -570,12 +582,25 @@
 	</BitsCombobox.Item>
 {/snippet}
 
-<!-- Outside the listbox, which may hold options and groups only. Mounted
-	 while the list is open, so the text it gains when nothing matches is
-	 announced. -->
+<!-- Outside the listbox, which may hold options and groups only. The visible
+	 line where the options were; hidden from assistive tech, because the
+	 status region says it once. -->
 {#snippet empty(inSheet: boolean)}
-	<p class="hp-combobox-empty" data-form={inSheet ? 'sheet' : 'popover'} role="status">
+	<p class="hp-combobox-empty" data-form={inSheet ? 'sheet' : 'popover'} aria-hidden="true">
 		{#if !matches.length}{emptyText}{/if}
+	</p>
+{/snippet}
+
+<!-- The one status region: mounted with the field, closed or open, so the
+	 text it gains is a change to a region the screen reader already tracks;
+	 a region that arrives with its text is commonly skipped. It holds
+	 `emptyText` only while the list is open and shows no option. The
+	 compact sheet is modal and hides what is outside it, so while it is
+	 open the region lives inside it, mounted empty and filled when a search
+	 matches nothing. -->
+{#snippet status()}
+	<p class="hp-visually-hidden" role="status">
+		{#if layers.open && !matches.length}{emptyText}{/if}
 	</p>
 {/snippet}
 

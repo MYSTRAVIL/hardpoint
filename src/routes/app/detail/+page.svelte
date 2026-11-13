@@ -20,7 +20,7 @@
 		TextField,
 		Timeline,
 		type KeyValueItem,
-		type NativeSelectOption,
+		type NativeSelectItem,
 		type StepsItem,
 		type TimelineEvent
 	} from '#lib';
@@ -59,14 +59,14 @@
 
 	type Priority = 'High' | 'Medium' | 'Low';
 
-	const people: NativeSelectOption[] = [
+	const people: NativeSelectItem[] = [
 		{ value: 'Mara Ilves', label: 'Mara Ilves' },
 		{ value: 'Tomás Reyes', label: 'Tomás Reyes' },
 		{ value: 'Ana Kovač', label: 'Ana Kovač' },
 		{ value: 'Joel Brandt', label: 'Joel Brandt' },
 		{ value: 'Ines Duarte', label: 'Ines Duarte' }
 	];
-	const priorities: NativeSelectOption<Priority>[] = [
+	const priorities: NativeSelectItem<Priority>[] = [
 		{ value: 'High', label: 'High' },
 		{ value: 'Medium', label: 'Medium' },
 		{ value: 'Low', label: 'Low' }
@@ -213,8 +213,8 @@
 					if (nameError) nameError = checkName(draft.name);
 				}}
 			/>
-			<NativeSelect label="Owner" name="owner" options={people} bind:value={draft.owner} />
-			<NativeSelect label="Priority" name="priority" options={priorities} bind:value={draft.priority} />
+			<NativeSelect label="Owner" name="owner" items={people} bind:value={draft.owner} />
+			<NativeSelect label="Priority" name="priority" items={priorities} bind:value={draft.priority} />
 		</form>
 		{#snippet actions({ close })}
 			<Button onclick={close}>Cancel</Button>

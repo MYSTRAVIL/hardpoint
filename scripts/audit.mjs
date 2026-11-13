@@ -1,29 +1,49 @@
 // Audit routes against the Hardpoint done-gate. Exit code 1 on any failure.
-// Usage: node scripts/audit.mjs [routes...] [--serve] [--theme dark|light] [--motion] [--json] [--verbose] [--wait ms]
-//   routes     paths ("/specimen") or full URLs; default: every static +page.svelte under src/routes
-//              (dynamic [param] routes are skipped)
+// Usage: node scripts/audit.mjs [routes...] [--serve] [--theme dark|light] [--motion] [--update-baseline] [--json] [--verbose] [--wait ms]
+//   routes     paths ("/specimen") or full URLs ("https://example.com"); default: every static +page.svelte
+//              under src/routes (dynamic [param] routes are skipped). A path waits for html[data-hydrated],
+//              which Hardpoint's own layout sets once the app has mounted; a full URL gets the settle time
+//              only. The theme reaches only apps that read localStorage "hardpoint:theme".
 //   --serve    start a private Vite dev server on a free port (otherwise SHOT_BASE, default http://localhost:5173)
 //   --theme    audit one theme only (default: both, dark then light; every route, every viewport, in each)
-//   --motion   also run the motion pass (opt-in; not part of the default gate; dark only), see below
+//   --motion   also run the motion pass (dark only), see below. The release workflow runs it; here it is opt-in
+//   --update-baseline  rewrite scripts/audit-baseline.json with this run's counts (see "Counts" below)
 //   --json     print machine-readable results instead of the report
 //   --verbose  also list every unchecked finding (default: first 3 per viewport), and every timed animation
-//   --wait ms  settle time after the page has hydrated (default 600)
+//   --wait ms  settle time after the page has hydrated, or loaded for a full URL (default 600)
 // Viewports: 320x640, 390x844, 768x1024 (touch, coarse pointer) and 1440x900 (fine pointer), in each theme.
 // A theme is chosen the way an app's user does: the saved choice (localStorage "hardpoint:theme") is set before
 // the page loads, and src/app.html applies it before first paint. Each result is labelled with its theme.
+// After the settle time every pass waits until the page has finished its own loading: no aria-busy region,
+// reveal, skeleton, eager image download or running animation (scripts/lib/page-ready.mjs). So /app is
+// checked after its simulated network, not during it, however busy the machine is. A page still loading
+// after 10 s fails (check 'load'), unless the baseline records that it stays busy on purpose (the states
+// docs); a full URL then gets a note.
 // Checks per route and viewport: console errors, horizontal overflow, target size (44px coarse / 24px fine,
 // hit-tested), input font-size >= 16px, text contrast (4.5:1, 3:1 large), control boundary contrast (3:1).
 // Opt a control out of the target check with data-audit-exempt="<reason>" (reported separately).
 // Reduced motion is emulated so entrance animations cannot skew colours mid-flight.
+// Overlays: then every closed overlay trigger ([aria-haspopup], [aria-expanded], tooltip triggers on the fine
+// pointer) is opened, the same checks run on the layer it opened (and nowhere else), and it is closed;
+// triggers inside an open layer too, two levels deep; a page with a Toaster also shows a toast. Details in
+// scripts/lib/audit-layers.mjs.
+// Counts: a route that checked 0 texts fails. Each route's counts per viewport and theme (texts and targets
+// on the page; overlays opened, and texts and targets in them) are compared with scripts/audit-baseline.json:
+// a count below half its baseline fails, and every such drop is listed. A route without a baseline entry gets
+// a note and is not compared. An entry with "stillBusy" marks a page that never finishes loading on purpose.
+// --update-baseline rewrites the file (the whole file on a run of every route in both themes, otherwise only
+// the entries this run checked), lists the pages it recorded as staying busy, and compares nothing.
 // Motion pass: at 390x844 touch (sheets) and 1440x900 fine (floating content), each with and without reduced
 // motion, it opens and closes every overlay trigger and checks animation durations against the --dur-* tokens,
 // that arrow keys inside an open list start no animation, and that nothing moves under reduced motion.
 // Details in scripts/lib/audit-motion.mjs.
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { launchChromium } from './lib/browser.mjs';
 import { auditPage } from './lib/audit-page.mjs';
+import { auditLayers } from './lib/audit-layers.mjs';
 import { auditMotion } from './lib/audit-motion.mjs';
+import { LOAD_TIMEOUT, afterLoad } from './lib/page-ready.mjs';
 import { normalizeTarget, resolveBase, root } from './lib/server.mjs';
 
 const args = process.argv.slice(2);
@@ -39,6 +59,7 @@ const routeArgs = args.filter((a, i) => !a.startsWith('--') && !VALUED.includes(
 const asJson = flags.has('--json');
 const verbose = flags.has('--verbose');
 const motion = flags.has('--motion');
+const updateBaseline = flags.has('--update-baseline');
 const THEMES = ['dark', 'light'];
 const onlyTheme = valueOf('--theme');
 if (onlyTheme !== undefined && !THEMES.includes(onlyTheme)) {
@@ -46,6 +67,8 @@ if (onlyTheme !== undefined && !THEMES.includes(onlyTheme)) {
   process.exit(2);
 }
 const themes = onlyTheme ? [onlyTheme] : THEMES;
+const BASELINE = join(root, 'scripts', 'audit-baseline.json');
+const isUrl = (route) => /^https?:\/\//i.test(route);
 
 const VIEWPORTS = [
   { w: 320, h: 640, touch: true },
@@ -61,7 +84,17 @@ const MOTION_VIEWPORTS = [
   reduced,
   name: `${v.w}x${v.h} ${v.touch ? 'touch' : 'fine'}, ${reduced ? 'reduced motion' : 'motion'}`,
 })));
-const CHECKS = ['console', 'overflow', 'targets', 'inputs', 'contrast', 'boundaries', ...(motion ? ['motion'] : [])];
+const CHECKS = ['console', 'load', 'overflow', 'targets', 'inputs', 'contrast', 'boundaries', 'overlays', 'counts', ...(motion ? ['motion'] : [])];
+
+// The counts kept in the baseline, read from a page result's `checked`.
+const COUNTS = {
+  texts: (c) => c.contrast,
+  targets: (c) => c.targets,
+  overlays: (c) => c.layers.opened,
+  overlayTexts: (c) => c.layers.contrast,
+  overlayTargets: (c) => c.layers.targets,
+};
+const countsOf = (checked) => Object.fromEntries(Object.entries(COUNTS).map(([k, f]) => [k, f(checked)]));
 
 function discoverRoutes() {
   const dir = join(root, 'src', 'routes');
@@ -75,9 +108,16 @@ function discoverRoutes() {
   return routes.sort();
 }
 
-// Load the route in a fresh context and run `inspect(page)`, which returns { checked, findings, ... }.
+// Load the route in a fresh context and run `inspect(page, ready)`, which returns { checked, findings, ... }.
+// `ready(page)` is the wait after a load, which a pass repeats when it reloads the page.
 async function visit(browser, base, route, vp, reducedMotion, inspect, theme) {
-  const url = route.startsWith('http') ? route : base + route;
+  const url = isUrl(route) ? route : base + route;
+  const ready = async (page) => {
+    // src/routes/+layout.svelte sets this once the app has mounted; until then client-only parts are missing.
+    // Another site never sets it, so a full URL gets the settle time only.
+    if (!isUrl(route)) await page.waitForSelector('html[data-hydrated]', { state: 'attached', timeout: 30000 });
+    return afterLoad(page, wait);
+  };
   const ctx = await browser.newContext({
     viewport: { width: vp.w, height: vp.h },
     hasTouch: vp.touch,
@@ -98,11 +138,8 @@ async function visit(browser, base, route, vp, reducedMotion, inspect, theme) {
     consoleErrors = [];
     try {
       await page.goto(url, { waitUntil: 'load', timeout: 30000 });
-      // src/routes/+layout.svelte sets this once the app has mounted; until then client-only parts are missing.
-      await page.waitForSelector('html[data-hydrated]', { state: 'attached', timeout: 30000 });
-      await page.evaluate(() => document.fonts.ready);
-      await page.waitForTimeout(wait);
-      result = await inspect(page);
+      const load = await ready(page);
+      result = { ...(await inspect(page, ready)), load };
       failure = null;
       break;
     } catch (e) {
@@ -120,9 +157,18 @@ async function visit(browser, base, route, vp, reducedMotion, inspect, theme) {
 }
 
 async function auditOne(browser, base, route, vp, theme) {
-  const arg = { width: vp.w, coarse: vp.touch, minTarget: vp.touch ? 44 : 24, minInputFont: 16 };
-  const { result, findings } = await visit(browser, base, route, vp, 'reduce', (page) => page.evaluate(auditPage, arg), theme);
-  return { route, theme, viewport: `${vp.name}, ${theme}`, checked: result?.checked ?? null, findings };
+  const check = { width: vp.w, coarse: vp.touch, minTarget: vp.touch ? 44 : 24, minInputFont: 16 };
+  const inspect = async (page, ready) => {
+    const own = await page.evaluate(auditPage, check);
+    const layers = await auditLayers(page, { coarse: vp.touch, ready, check });
+    return { checked: { ...own.checked, layers: layers.checked }, findings: [...own.findings, ...layers.findings] };
+  };
+  const { result, findings } = await visit(browser, base, route, vp, 'reduce', inspect, theme);
+  if (result && result.checked.contrast === 0) {
+    findings.push({ check: 'counts', status: 'fail', selector: null, text: null, message: 'checked 0 texts: the page rendered nothing' });
+  }
+  const viewport = `${vp.name}, ${theme}`;
+  return { route, theme, viewport, key: viewport, checked: result?.checked ?? null, load: result?.load ?? null, findings };
 }
 
 // The motion pass stays dark only: its checks are about timing, not colour.
@@ -133,10 +179,21 @@ async function motionOne(browser, base, route, vp) {
     route,
     vp,
     vp.reduced ? 'reduce' : 'no-preference',
-    (page) => auditMotion(page, { coarse: vp.touch, wait }),
+    (page, ready) => auditMotion(page, { coarse: vp.touch, ready }),
     'dark',
   );
-  return { route, theme: 'dark', viewport: `${vp.name}, dark`, motion: true, checked: result?.checked ?? null, timings: result?.timings ?? [], findings };
+  return {
+    route,
+    theme: 'dark',
+    viewport: `${vp.name}, dark`,
+    // The baseline entry of the page run at the same size, which says whether the page stays busy.
+    key: `${vp.w}x${vp.h} ${vp.touch ? 'touch' : 'fine'}, dark`,
+    motion: true,
+    checked: result?.checked ?? null,
+    load: result?.load ?? null,
+    timings: result?.timings ?? [],
+    findings,
+  };
 }
 
 const { base, server } = await resolveBase(flags.has('--serve'));
@@ -157,6 +214,73 @@ try {
 }
 const seconds = Math.round((Date.now() - started) / 100) / 10;
 
+// ---- Loading and counts against the baseline -----------------------------------------------------------
+const pageResults = results.filter((r) => !r.motion);
+const baseline = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, 'utf8')) : {};
+const stillLoading = (r) => r.load && !r.load.loaded;
+const notes = [];
+const drops = [];
+let baselineWritten = null;
+if (updateBaseline) {
+  // A run of every route in both themes rewrites the file; a narrower run updates only what it checked.
+  const whole = !routeArgs.length && !onlyTheme;
+  const next = whole ? {} : structuredClone(baseline);
+  let entries = 0;
+  const busy = new Map();
+  for (const r of pageResults) {
+    if (isUrl(r.route) || !r.checked || r.checked.contrast === 0) continue;
+    (next[r.route] ??= {})[r.viewport] = { ...countsOf(r.checked), ...(stillLoading(r) ? { stillBusy: r.load.busy } : {}) };
+    if (stillLoading(r)) busy.set(r.route, (busy.get(r.route) ?? 0) + 1);
+    entries++;
+  }
+  const order = THEMES.flatMap((t) => VIEWPORTS.map((vp) => `${vp.name}, ${t}`));
+  const rank = (k) => (order.includes(k) ? order.indexOf(k) : order.length);
+  const lines = Object.keys(next)
+    .sort()
+    .map((route) => {
+      const vps = Object.keys(next[route]).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+      return `  ${JSON.stringify(route)}: {\n${vps.map((v) => `    ${JSON.stringify(v)}: ${JSON.stringify(next[route][v])}`).join(',\n')}\n  }`;
+    });
+  writeFileSync(BASELINE, `{\n${lines.join(',\n')}\n}\n`);
+  baselineWritten = { entries, routes: Object.keys(next).length, whole, stillBusy: Object.fromEntries(busy) };
+} else {
+  // A page still loading at the timeout was checked mid-load: a failure, unless it stays busy on purpose.
+  for (const r of results.filter(stillLoading)) {
+    const at = `still loading after ${LOAD_TIMEOUT / 1000}s (${r.load.busy})`;
+    if (isUrl(r.route)) notes.push(`${r.route} [${r.viewport}]: ${at}; checked as it was`);
+    else if (!baseline[r.route]?.[r.key]?.stillBusy) {
+      r.findings.push({
+        check: 'load', status: 'fail', selector: null, text: null,
+        message: `${at}, so it was checked mid-load. If it stays busy on purpose, record that with --update-baseline`,
+      });
+    }
+  }
+  for (const route of routes) {
+    const entry = baseline[route];
+    if (!entry) {
+      notes.push(
+        isUrl(route)
+          ? `${route}: a full URL has no baseline; counts not compared`
+          : `${route}: no baseline entry, counts not compared (add one with --update-baseline)`,
+      );
+      continue;
+    }
+    for (const r of pageResults.filter((x) => x.route === route && x.checked)) {
+      const want = entry[r.viewport];
+      if (!want) {
+        notes.push(`${route} [${r.viewport}]: no baseline entry, counts not compared`);
+        continue;
+      }
+      const now = countsOf(r.checked);
+      for (const [k, was] of Object.entries(want)) {
+        if (!(k in now) || now[k] >= was / 2) continue;
+        drops.push({ route, viewport: r.viewport, count: k, now: now[k], baseline: was });
+        r.findings.push({ check: 'counts', status: 'fail', selector: null, text: null, message: `${k} ${now[k]}, below half its baseline ${was}` });
+      }
+    }
+  }
+}
+
 const count = (status) => {
   const c = Object.fromEntries(CHECKS.map((k) => [k, 0]));
   for (const r of results) for (const f of r.findings) if (f.status === status) c[f.check]++;
@@ -171,6 +295,10 @@ const failThemes = motion && !themes.includes('dark') ? ['dark', ...themes] : th
 const failsByTheme = Object.fromEntries(
   failThemes.map((t) => [t, results.filter((r) => r.theme === t).reduce((n, r) => n + r.findings.filter((f) => f.status === 'fail').length, 0)]),
 );
+const layerTotals = pageResults.reduce(
+  (t, r) => (r.checked ? { overlays: t.overlays + r.checked.layers.overlays, opened: t.opened + r.checked.layers.opened } : t),
+  { overlays: 0, opened: 0 },
+);
 const summary = {
   base,
   routes: routes.length,
@@ -178,6 +306,7 @@ const summary = {
   themes,
   ...(motion ? { motionRuns: MOTION_VIEWPORTS.length } : {}),
   seconds,
+  overlays: layerTotals,
   failures: failTotal,
   failuresByCheck: fails,
   failuresByTheme: failsByTheme,
@@ -185,6 +314,9 @@ const summary = {
   uncheckedByCheck: unchecked,
   exempt: sum(exempt),
   exemptByCheck: exempt,
+  drops,
+  notes,
+  ...(baselineWritten ? { baselineWritten } : {}),
   pass: failTotal === 0,
 };
 
@@ -202,6 +334,7 @@ if (asJson) {
     for (const r of results.filter((x) => x.route === route)) {
       const f = r.findings.filter((x) => x.status === 'fail');
       const c = r.checked;
+      const l = c?.layers;
       const tally = !c
         ? 'not audited'
         : r.motion
@@ -212,8 +345,12 @@ if (asJson) {
             ', ' +
             `timed ${c.animations} animations, arrow keys in ${c.lists} lists` +
             (c.skipped ? `; ${c.skipped} tooltip triggers left alone on touch` : '')
-          : `checked ${c.targets} targets, ${c.inputs} inputs, ${c.contrast} texts, ${c.boundaries} boundaries`;
-      console.log(`  ${r.viewport}: ${f.length ? `${f.length} failure(s)` : 'ok'} (${tally})`);
+          : `checked ${c.targets} targets, ${c.inputs} inputs, ${c.contrast} texts, ${c.boundaries} boundaries` +
+            (l.overlays
+              ? `; opened ${l.opened} of ${l.overlays} overlays: ${l.targets} targets, ${l.inputs} inputs, ${l.contrast} texts, ${l.boundaries} boundaries`
+              : '');
+      const busy = r.load && !r.load.loaded ? `; still loading after ${LOAD_TIMEOUT / 1000}s (${r.load.busy})` : '';
+      console.log(`  ${r.viewport}: ${f.length ? `${f.length} failure(s)` : 'ok'} (${tally}${busy})`);
       for (const x of f) console.log(line(x));
       if (verbose) {
         for (const t of r.timings ?? []) {
@@ -232,10 +369,30 @@ if (asJson) {
     console.log('\nExempt:');
     for (const f of ex) console.log(`  ${f.route} [${f.viewport}] ${f.check} ${f.selector}  ${f.message}`);
   }
+  if (drops.length) {
+    console.log('\nCounts below half their baseline (scripts/audit-baseline.json):');
+    for (const d of drops) console.log(`  ${d.route} [${d.viewport}] ${d.count} ${d.now}, baseline ${d.baseline}`);
+  }
+  if (notes.length) {
+    console.log('\nNotes:');
+    for (const n of notes) console.log(`  ${n}`);
+  }
+  if (baselineWritten) {
+    console.log(
+      `\nbaseline: wrote ${baselineWritten.entries} entries (${baselineWritten.whole ? 'the whole file' : 'merged into the file'}, ` +
+        `${baselineWritten.routes} routes) to scripts/audit-baseline.json; counts not compared`,
+    );
+    const busy = Object.entries(baselineWritten.stillBusy);
+    if (busy.length) {
+      console.log(`Recorded as still loading after ${LOAD_TIMEOUT / 1000}s on purpose (check each one; a page that should finish is a fault):`);
+      for (const [route, n] of busy) console.log(`  ${route} (${n} of ${themes.length * VIEWPORTS.length} viewports)`);
+    }
+  }
   const by = (o) => CHECKS.filter((k) => o[k]).map((k) => `${k} ${o[k]}`).join(', ') || 'none';
   console.log(
     `\naudit ${summary.pass ? 'PASS' : 'FAIL'}: ${routes.length} routes x ${VIEWPORTS.length} viewports x ${themes.length} theme${themes.length > 1 ? 's' : ''}` +
-      `${motion ? ` and ${MOTION_VIEWPORTS.length} motion runs per route (dark)` : ''} in ${seconds}s; ` +
+      `, ${layerTotals.opened} of ${layerTotals.overlays} overlays opened` +
+      `${motion ? `, and ${MOTION_VIEWPORTS.length} motion runs per route (dark)` : ''} in ${seconds}s; ` +
       `failures ${failTotal} (${failThemes.map((t) => `${t} ${failsByTheme[t]}`).join(', ')}; ${by(fails)}); ` +
       `${summary.unchecked} unchecked (${by(unchecked)}); ${summary.exempt} exempt (${by(exempt)})`,
   );

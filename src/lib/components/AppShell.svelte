@@ -83,6 +83,7 @@
 	import { Dialog } from 'bits-ui';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { drawer as slide } from '../motion/index.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import Scrim from './internal/Scrim.svelte';
 	import { swipeDismiss } from './internal/swipe-dismiss.js';
 
@@ -118,6 +119,10 @@
 	$effect(() => {
 		if (wide.current && drawerOpen) drawerOpen = false;
 	});
+
+	// Bits UI's portal and the drawer mount on its first open, so a closed
+	// drawer costs only the menu button.
+	const drawerLayers = mountOnFirstOpen(() => drawerOpen);
 
 	let side = $state<HTMLElement | null>(null);
 
@@ -158,7 +163,7 @@
 	<header class="hp-app-shell-header">
 		<div class="brand">
 			{#if withDrawer}
-				<Dialog.Root bind:open={drawerOpen}>
+				<Dialog.Root bind:open={() => drawerLayers.open, (value) => (drawerOpen = value)}>
 					<Dialog.Trigger>
 						{#snippet child({ props })}
 							<button {...props} type="button" class="hp-app-shell-menu" aria-label={menuLabel}>
@@ -175,40 +180,42 @@
 							</button>
 						{/snippet}
 					</Dialog.Trigger>
-					<Dialog.Portal>
-						<Dialog.Content forceMount aria-labelledby={drawerTitleId} {onCloseAutoFocus}>
-							{#snippet child({ props, open: shown })}
-								<Scrim open={shown} layer="dialog" />
-								{#if shown}
-									<div
-										{...props}
-										class="hp-app-shell-drawer"
-										transition:slide
-										{@attach swipeDismiss(closeDrawer, { direction: 'left' })}
-									>
-										<div class="drawer-head">
-											<h2 id={drawerTitleId} class="drawer-title hp-view-title">{menuLabel}</h2>
-											<button type="button" class="drawer-close" aria-label={closeLabel} onclick={closeDrawer}>
-												<svg
-													viewBox="0 0 16 16"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="1.5"
-													stroke-linecap="square"
-													aria-hidden="true"
-												>
-													<path d="M3 3l10 10M13 3L3 13" />
-												</svg>
-											</button>
+					{#if drawerLayers.mounted}
+						<Dialog.Portal>
+							<Dialog.Content forceMount aria-labelledby={drawerTitleId} {onCloseAutoFocus}>
+								{#snippet child({ props, open: shown })}
+									<Scrim open={shown} layer="dialog" />
+									{#if shown}
+										<div
+											{...props}
+											class="hp-app-shell-drawer"
+											transition:slide
+											{@attach swipeDismiss(closeDrawer, { direction: 'left' })}
+										>
+											<div class="drawer-head">
+												<h2 id={drawerTitleId} class="drawer-title hp-view-title">{menuLabel}</h2>
+												<button type="button" class="drawer-close" aria-label={closeLabel} onclick={closeDrawer}>
+													<svg
+														viewBox="0 0 16 16"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="1.5"
+														stroke-linecap="square"
+														aria-hidden="true"
+													>
+														<path d="M3 3l10 10M13 3L3 13" />
+													</svg>
+												</button>
+											</div>
+											<nav class="drawer-nav" aria-label={navLabel}>
+												{@render links('drawer')}
+											</nav>
 										</div>
-										<nav class="drawer-nav" aria-label={navLabel}>
-											{@render links('drawer')}
-										</nav>
-									</div>
-								{/if}
-							{/snippet}
-						</Dialog.Content>
-					</Dialog.Portal>
+									{/if}
+								{/snippet}
+							</Dialog.Content>
+						</Dialog.Portal>
+					{/if}
 				</Dialog.Root>
 			{/if}
 			{@render brand?.()}

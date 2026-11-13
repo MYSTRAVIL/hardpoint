@@ -32,7 +32,7 @@
 			<NativeSelect
 				label="Side by side from"
 				bind:value={splitFrom}
-				options={[
+				items={[
 					{ value: 'medium', label: '600px (medium)' },
 					{ value: 'expanded', label: '900px (expanded)' },
 					{ value: 'large', label: '1200px (large)' }

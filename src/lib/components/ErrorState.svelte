@@ -21,7 +21,7 @@
 		/** The retry button's label. Defaults to `Try again`. */
 		retryLabel?: string;
 		/** A fix that is not a retry, such as signing in again: render a `Button` here. It follows the retry button. */
-		action?: Snippet;
+		actions?: Snippet;
 		titleAs?: ErrorStateTitleElement;
 		variant?: ErrorStateVariant;
 	};
@@ -35,7 +35,7 @@
 		description,
 		onretry,
 		retryLabel = 'Try again',
-		action,
+		actions,
 		titleAs = 'p',
 		variant = 'standard',
 		class: className,
@@ -71,13 +71,13 @@
 			<p class="hp-error-state-description">{description}</p>
 		{/if}
 	</div>
-	{#if onretry || action}
+	{#if onretry || actions}
 		<div class="hp-error-state-actions">
 			{#if onretry}
 				<!-- type="button", so a retry inside a form never submits it. -->
 				<Button type="button" onclick={onretry}>{retryLabel}</Button>
 			{/if}
-			{@render action?.()}
+			{@render actions?.()}
 		</div>
 	{/if}
 </div>

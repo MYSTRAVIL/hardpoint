@@ -6,9 +6,14 @@
 	import '#lib/tokens.css';
 	import '#lib/base.css';
 	import ThemeSelect from './ThemeSelect.svelte';
+	import PageLinks from './PageLinks.svelte';
+	import { neighbours } from './pages';
 	import { applySavedTuning } from './motion-tuning';
 
 	let { children } = $props();
+
+	// The entries before and after this page in the index; null off the index.
+	const around = $derived(neighbours(page.url.pathname));
 
 	// The /motion page's overrides for this tab, on every page: docs and bare.
 	if (browser) applySavedTuning();
@@ -36,6 +41,12 @@
 	The title and controls are page content and change with the page; the
 	wordmark never does (da3-40, da3-49).
 
+	The layout also owns two things after the page: the previous and next
+	links, read from ./pages.ts in the index's order, and the Theme control.
+	From 1200px the Theme control sits in the header row's control column;
+	on a page that has its own controls, and below 1200px, it stays at the
+	bottom, under the links.
+
 	A route opts out of this shell with `bare: true` from its load function
 	(`export const load = () => ({ bare: true })` in its +page.ts, or a
 	+layout.ts for a whole subtree). It then renders alone, so it can show a
@@ -51,9 +62,12 @@
 			<a class="hp-pixel" href="/">HARDPOINT</a>
 		</nav>
 		{@render children()}
-		<footer class="site-foot">
+		{#if around && (around.prev || around.next)}
+			<div class="foot"><PageLinks pathname={page.url.pathname} /></div>
+		{/if}
+		<div class="theme">
 			<ThemeSelect labelBeside />
-		</footer>
+		</div>
 	</div>
 {/if}
 
@@ -85,12 +99,13 @@
 		   wordmark and the controls; main and the controls row keep
 		   min-width: 0, so wide content never stretches the header. */
 		grid-template-columns: 1fr auto 1fr;
-		grid-template-rows: auto auto 1fr auto;
+		grid-template-rows: auto auto 1fr auto auto;
 		grid-template-areas:
 			'brand title .'
 			'controls controls controls'
 			'main main main'
-			'foot foot foot';
+			'foot foot foot'
+			'theme theme theme';
 		/* Phones: no column gaps, since the empty third column would cost the
 		   title a second one; the title's own padding keeps it off the
 		   wordmark. */
@@ -106,11 +121,12 @@
 	}
 	@media (min-width: 1200px) {
 		.shell {
-			grid-template-rows: auto 1fr auto;
+			grid-template-rows: auto 1fr auto auto;
 			grid-template-areas:
 				'brand title controls'
 				'main main main'
-				'foot foot foot';
+				'foot foot foot'
+				'theme theme theme';
 			column-gap: var(--space-12);
 		}
 	}
@@ -205,12 +221,48 @@
 		outline: none;
 	}
 
-	/* Site chrome after the page: the Theme control. Below main, so it never
-	   competes with the page controls in the header row. */
-	.site-foot {
+	/* The previous and next links, in the row below main. */
+	.foot {
 		grid-area: foot;
+		min-width: 0;
+		padding-bottom: var(--space-4);
+	}
+
+	/* The Theme control. One element in the DOM: below 1200px it sits last,
+	   under the pager, so it never competes with the page controls; from
+	   1200px it takes the header row's control column, pinned with the row.
+	   A page that brings its own controls keeps it at the bottom, where the
+	   header's control column is taken. */
+	.theme {
+		grid-area: theme;
 		min-width: 0;
 		max-width: 320px;
 		padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom));
+	}
+	@media (min-width: 1200px) {
+		.foot {
+			padding-bottom: calc(var(--space-8) + env(safe-area-inset-bottom));
+		}
+		.theme {
+			grid-area: controls;
+			position: sticky;
+			top: 0;
+			z-index: 5;
+			display: flex;
+			align-items: center;
+			justify-content: flex-end;
+			justify-self: end;
+			width: 320px;
+			height: calc(var(--header-height) + env(safe-area-inset-top));
+			padding: env(safe-area-inset-top) 0 0;
+		}
+		.shell:has(> :global(header + :not(main))) > .theme {
+			grid-area: theme;
+			position: static;
+			justify-self: start;
+			justify-content: flex-start;
+			height: auto;
+			padding: 0 0 calc(var(--space-8) + env(safe-area-inset-bottom));
+		}
 	}
 </style>

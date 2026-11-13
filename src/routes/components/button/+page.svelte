@@ -7,6 +7,11 @@
 		{ variant: 'tertiary', note: 'Label only. Quiet actions beside other controls.', icon: 'close', name: 'Close' }
 	];
 
+	const dangerVariants: { variant: 'secondary' | 'tertiary'; note: string }[] = [
+		{ variant: 'secondary', note: 'Red outline and label.' },
+		{ variant: 'tertiary', note: 'Red label. The hover underline is red too.' }
+	];
+
 	const states = [
 		{ key: 'rest', label: 'Rest', disabled: false },
 		{ key: 'disabled', label: 'Disabled', disabled: true }
@@ -42,9 +47,14 @@
 				place does not take it.
 			</li>
 			<li>
-				<code>icon</code> makes a square, icon-only button. It has no visible label, so give it an
-				accessible name with <code>aria-label</code>. Draw the icon as an inline <code>&lt;svg&gt;</code>
-				in <code>currentColor</code>.
+				<code>icon</code> makes a square, icon-only button. It has no visible label, so the types require
+				an accessible name: <code>aria-label</code> or <code>aria-labelledby</code>. Draw the icon as an
+				inline <code>&lt;svg&gt;</code> in <code>currentColor</code>.
+			</li>
+			<li>
+				<code>tone="danger"</code> turns a secondary or tertiary button’s label status red, for an action
+				that destroys or removes something. Say what is destroyed in the label, because colour never
+				carries the meaning alone.
 			</li>
 			<li>
 				A disabled <code>&lt;button&gt;</code> leaves the tab order. A disabled link drops its
@@ -125,6 +135,47 @@
 			<code>aria-label</code>.
 		</p>
 		{@render matrix('icon')}
+	</section>
+
+	{#snippet dangerMatrix(icon: boolean)}
+		<div class="matrix">
+			{#each dangerVariants as v (v.variant)}
+				<div class="row">
+					<div class="row-head">
+						<h3 class="hp-label">{v.variant}</h3>
+						<p class="hp-caption">{v.note}</p>
+					</div>
+					<div class="cells">
+						{#each states as s (s.key)}
+							<div class="cell">
+								<span class="hp-caption state">{s.label}</span>
+								{#if icon}
+									<Button variant={v.variant} tone="danger" disabled={s.disabled} icon aria-label="Delete {v.variant}">
+										<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="square" aria-hidden="true"><path d="M2.5 4.5h11M6 4.5v-2h4v2M4 4.5l.5 9h7l.5-9" /></svg>
+									</Button>
+								{:else}
+									<Button variant={v.variant} tone="danger" disabled={s.disabled}>Delete project</Button>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/snippet}
+
+	<section aria-labelledby="danger">
+		<h2 id="danger" class="hp-section-title">Danger</h2>
+		<p class="lede">
+			<code>tone="danger"</code> marks an action that destroys or removes something. A secondary button
+			gets the status red on its outline and label; a tertiary button, on its label. Hover and press fill
+			the button as usual, and a tertiary label still underlines on hover. A disabled button ignores the
+			tone. A primary button takes no tone: the type rejects it. The element carries
+			<code>data-tone="danger"</code>.
+		</p>
+		{@render dangerMatrix(false)}
+		<h3 class="hp-label sub">Icon only</h3>
+		{@render dangerMatrix(true)}
 	</section>
 
 	<section aria-labelledby="group">
@@ -212,6 +263,10 @@
 		display: grid;
 		justify-items: start;
 		gap: var(--space-2);
+	}
+	.sub {
+		margin: var(--space-8) 0 var(--space-4);
+		color: var(--muted);
 	}
 	.state {
 		color: var(--muted);

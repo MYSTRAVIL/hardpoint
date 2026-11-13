@@ -2,7 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import type { DropdownMenu as BitsDropdownMenu } from 'bits-ui';
 
-	export type MenuItemVariant = 'default' | 'danger';
+	export type MenuItemTone = 'danger';
 
 	/**
 	 * Attributes and handlers not listed here go to the item element (Bits UI
@@ -12,8 +12,8 @@
 	 * Bits UI 2.20.6 declares `textValue` but does not read it yet.
 	 */
 	export type MenuItemProps = Omit<BitsDropdownMenu.ItemProps, 'child' | 'children'> & {
-		/** `danger` (status red) for an action that destroys or removes something. */
-		variant?: MenuItemVariant;
+		/** `danger` (status red) for an action that destroys or removes something. No tone is the neutral row. */
+		tone?: MenuItemTone;
 		/** The label, as written (never caps). */
 		children: Snippet;
 	};
@@ -23,7 +23,7 @@
 	import { DropdownMenu } from 'bits-ui';
 
 	let {
-		variant = 'default',
+		tone,
 		ref = $bindable(null),
 		class: className,
 		children,
@@ -38,7 +38,7 @@
 -->
 <DropdownMenu.Item bind:ref {...rest}>
 	{#snippet child({ props })}
-		<div {...props} class={['hp-menu-item', className]} data-variant={variant}>
+		<div {...props} class={['hp-menu-item', className]} data-tone={tone}>
 			<span class="hp-menu-item-label">{@render children()}</span>
 		</div>
 	{/snippet}
@@ -82,7 +82,7 @@
 		background: var(--surface-raised);
 	}
 
-	.hp-menu-item[data-variant='danger'] {
+	.hp-menu-item[data-tone='danger'] {
 		color: var(--danger);
 	}
 	/* Disabled: muted, even a danger item; keys skip it and a pointer does

@@ -38,6 +38,14 @@
 		label: string;
 		/** Shown in `--muted` while nothing is chosen. Never the only label. */
 		placeholder?: string;
+		/** Guidance under the trigger in `--muted`, linked by `aria-describedby`. */
+		hint?: string;
+		/**
+		 * The error to show under the trigger, with an icon, linked by
+		 * `aria-describedby`; it sets `aria-invalid`. Say how to fix the
+		 * problem. The app validates; the select shows what it is given.
+		 */
+		error?: string;
 		disabled?: boolean;
 		/** Submits the value with a form, through a hidden input. */
 		name?: string;
@@ -46,6 +54,8 @@
 		 * from a breakpoint up (`medium` 600px, `expanded` 900px, `large` 1200px).
 		 */
 		labelBeside?: SelectLabelBeside;
+		/** The compact sheet's close button name. */
+		closeLabel?: string;
 		/** The trigger button. */
 		ref?: HTMLElement | null;
 		/** Renders an option's content in place of its label and description. */
@@ -54,8 +64,10 @@
 </script>
 
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { pop } from '../motion/index.js';
+	import { fadeIn } from './internal/fade-in.js';
 	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import { groupOptions } from './internal/groups.js';
 	import Sheet from './internal/Sheet.svelte';
@@ -68,17 +80,47 @@
 		open = $bindable(false),
 		label,
 		placeholder = '',
+		hint,
+		error,
 		disabled = false,
 		name,
 		labelBeside = false,
+		closeLabel = 'Close',
 		id = `${uid}-trigger`,
 		ref = $bindable(null),
 		item: itemContent,
 		class: className,
+		'aria-describedby': describedBy,
+		'aria-invalid': ariaInvalid,
 		...rest
 	}: SelectProps = $props();
 
 	const labelId = `${uid}-label`;
+	const hintId = $derived(`${id}-hint`);
+	const errorId = $derived(`${id}-error`);
+	// The error first, so a screen reader reads it before the hint.
+	const describedByIds = $derived(
+		[error ? errorId : undefined, hint ? hintId : undefined, describedBy].filter(Boolean).join(' ') ||
+			undefined
+	);
+
+	// ---- Short motion: the error (BRIEF, --dur-message) --------------------
+
+	// As in TextField: an error that appears after the first render fades in
+	// from 0 over --dur-message, and the trigger's edge fades to --danger
+	// with it (the CSS below). An error that clears goes at once, and so does
+	// the red edge. A select that renders with an error shows it at once.
+	let root: HTMLDivElement | null = $state(null);
+	let errorShown = untrack(() => !!error);
+	$effect(() => {
+		const shown = !!error;
+		untrack(() => {
+			const appeared = shown && !errorShown;
+			errorShown = shown;
+			const message = appeared ? root?.querySelector(':scope > .error') : null;
+			if (message) fadeIn(message, '--dur-message');
+		});
+	});
 
 	// Compact (< 600px) opens a bottom sheet; medium and up a list under the
 	// trigger (BRIEF, Apps and phones: Overlays and Choices).
@@ -146,9 +188,11 @@
 </script>
 
 <div
+	bind:this={root}
 	class={['hp-select', className]}
 	data-state={open ? 'open' : 'closed'}
 	data-disabled={disabled || undefined}
+	data-invalid={error ? '' : undefined}
 	data-placeholder={chosen ? undefined : ''}
 	data-label-beside={labelBeside === true ? 'always' : labelBeside || undefined}
 	onkeydowncapture={() => (keyboard = true)}
@@ -164,7 +208,14 @@
 		{disabled}
 		{name}
 	>
-		<BitsSelect.Trigger bind:ref {id} aria-labelledby={labelId} {...rest}>
+		<BitsSelect.Trigger
+			bind:ref
+			{id}
+			aria-labelledby={labelId}
+			aria-describedby={describedByIds}
+			aria-invalid={error ? true : ariaInvalid}
+			{...rest}
+		>
 			{#snippet child({ props })}
 				<span class="hp-select-field hp-well-chevron">
 					<button {...props} class="hp-select-trigger hp-well" data-placeholder={chosen ? undefined : ''}>
@@ -209,6 +260,7 @@
 								open={shown}
 								layer="popover"
 								title={label}
+								{closeLabel}
 								onclose={close}
 								bind:ref={sheetNode}
 								onpointerdown={keepFocus}
@@ -229,6 +281,20 @@
 			</BitsSelect.Portal>
 		{/if}
 	</BitsSelect.Root>
+	{#if hint}
+		<p class="hint hp-caption" id={hintId}>{hint}</p>
+	{/if}
+	{#if error}
+		<p class="error hp-caption" id={errorId}>
+			<span class="icon" aria-hidden="true">
+				<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor">
+					<path d="M1.5 1.5h13v13h-13z" />
+					<path d="M8 4v4M8 10v2" stroke-width="2" />
+				</svg>
+			</span>
+			<span>{error}</span>
+		</p>
+	{/if}
 </div>
 
 {#snippet options(inSheet: boolean)}
@@ -314,36 +380,114 @@
 	}
 
 	/* Label beside the trigger, as in a filter bar: always, or from a
-	   breakpoint up. */
+	   breakpoint up. The label keeps its one line in the first column; the
+	   trigger, hint and error share the second. */
 	.hp-select[data-label-beside='always'] {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
+		grid-template-columns: auto minmax(0, 1fr);
+		column-gap: var(--space-2);
+	}
+	.hp-select[data-label-beside='always'] .hp-select-label {
+		grid-row: 1;
+		align-self: center;
+		white-space: nowrap;
+	}
+	.hp-select[data-label-beside='always'] .hp-select-field,
+	.hp-select[data-label-beside='always'] p {
+		grid-column: 2;
 	}
 	@media (min-width: 600px) {
 		.hp-select[data-label-beside='medium'] {
-			display: flex;
-			align-items: center;
-			gap: var(--space-2);
+			grid-template-columns: auto minmax(0, 1fr);
+			column-gap: var(--space-2);
+		}
+		.hp-select[data-label-beside='medium'] .hp-select-label {
+			grid-row: 1;
+			align-self: center;
+			white-space: nowrap;
+		}
+		.hp-select[data-label-beside='medium'] .hp-select-field,
+		.hp-select[data-label-beside='medium'] p {
+			grid-column: 2;
 		}
 	}
 	@media (min-width: 900px) {
 		.hp-select[data-label-beside='expanded'] {
-			display: flex;
-			align-items: center;
-			gap: var(--space-2);
+			grid-template-columns: auto minmax(0, 1fr);
+			column-gap: var(--space-2);
+		}
+		.hp-select[data-label-beside='expanded'] .hp-select-label {
+			grid-row: 1;
+			align-self: center;
+			white-space: nowrap;
+		}
+		.hp-select[data-label-beside='expanded'] .hp-select-field,
+		.hp-select[data-label-beside='expanded'] p {
+			grid-column: 2;
 		}
 	}
 	@media (min-width: 1200px) {
 		.hp-select[data-label-beside='large'] {
-			display: flex;
-			align-items: center;
-			gap: var(--space-2);
+			grid-template-columns: auto minmax(0, 1fr);
+			column-gap: var(--space-2);
+		}
+		.hp-select[data-label-beside='large'] .hp-select-label {
+			grid-row: 1;
+			align-self: center;
+			white-space: nowrap;
+		}
+		.hp-select[data-label-beside='large'] .hp-select-field,
+		.hp-select[data-label-beside='large'] p {
+			grid-column: 2;
 		}
 	}
-	.hp-select[data-label-beside] .hp-select-label {
+
+	/* Invalid: the trigger's boundary turns --danger (5.9:1 on black), never
+	   alone: the icon and the message say what is wrong. Keyed on the root's
+	   data-invalid, set by `error`, so an aria-invalid the app passes
+	   without a message draws no red border. The edge fades to --danger
+	   over --dur-message with the message; the transition belongs to this
+	   rule, so the edge goes back at once when the error clears. The hover
+	   fill keeps base.css's timing. */
+	[data-invalid] .hp-select-trigger {
+		border-color: var(--danger);
+		transition:
+			background-color var(--dur-hover) var(--settle),
+			border-color var(--dur-message) var(--settle);
+	}
+	[data-invalid][data-disabled] .hp-select-trigger {
+		border-color: var(--border);
+	}
+
+	.hint {
+		margin: 0;
+		color: var(--muted);
+	}
+	.error {
+		display: flex;
+		gap: var(--space-2);
+		margin: 0;
+		color: var(--danger);
+	}
+	/* The first message starts 8px under the trigger, clear of the focus
+	   contour (2px, drawn 4px outside the well). Bits UI's hidden input may
+	   sit between them, so the rule reads by sibling order, not adjacency. */
+	.hp-select-field ~ .hint,
+	.hp-select-field ~ .error {
+		margin-top: var(--space-1);
+	}
+	.hint ~ .error {
+		margin-top: 0;
+	}
+	/* One line box high, so the icon centres on the first line of the
+	   message however it wraps. */
+	.icon {
+		display: flex;
 		flex: none;
-		white-space: nowrap;
+		align-items: center;
+		height: 1lh;
+	}
+	.icon svg {
+		display: block;
 	}
 
 	/* The trigger is base.css's well; its wrapper draws the chevron, like a

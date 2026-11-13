@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import CheckboxGroup, { type CheckboxGroupItem } from '#lib/components/CheckboxGroup.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
@@ -168,6 +169,15 @@
 				{/snippet}
 			</Dialog>
 		</div>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'closeLabel', value: 'Close', shows: 'The accessible name of the sheet’s close button, below 600px.' }
+			]}
+		/>
 	</section>
 </main>
 

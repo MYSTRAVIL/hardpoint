@@ -15,7 +15,8 @@
 	/**
 	 * Attributes and handlers not listed here go to the dialog element (Bits
 	 * UI `Dialog.Content`), among them `onOpenAutoFocus`, `onCloseAutoFocus`,
-	 * `onEscapeKeydown` and `onInteractOutside`.
+	 * `onEscapeKeydown` and `onInteractOutside`. An app's `onOpenAutoFocus`
+	 * runs before `initialFocus` is applied.
 	 */
 	export type DialogProps = Omit<
 		BitsDialog.ContentProps,
@@ -40,6 +41,14 @@
 		children?: Snippet;
 		/** The action row at the bottom, primary action last. */
 		actions?: Snippet<[DialogActionsSnippetProps]>;
+		/**
+		 * Where focus starts when the dialog opens, in place of the close
+		 * button: an element inside the dialog, or a function that returns one,
+		 * called as the dialog opens. When it gives no element, focus starts on
+		 * the close button. An app's own `onOpenAutoFocus` runs first; when it
+		 * calls `preventDefault()`, the dialog leaves focus alone.
+		 */
+		initialFocus?: HTMLElement | null | (() => HTMLElement | null | undefined);
 		/** The close button's accessible name. */
 		closeLabel?: string;
 		/** The dialog element. */
@@ -50,6 +59,7 @@
 <script lang="ts">
 	import { MediaQuery } from 'svelte/reactivity';
 	import { fade, sheet } from '../motion/index.js';
+	import { mountOnFirstOpen } from './internal/first-open.svelte.js';
 	import Scrim from './internal/Scrim.svelte';
 	import Sheet from './internal/Sheet.svelte';
 	import { followVisualViewport } from './internal/visual-viewport.svelte.js';
@@ -64,8 +74,10 @@
 		trigger,
 		children,
 		actions,
+		initialFocus,
 		closeLabel = 'Close',
 		ref = $bindable(null),
+		onOpenAutoFocus,
 		class: className,
 		...rest
 	}: DialogProps = $props();
@@ -98,8 +110,25 @@
 	// option on in the content snippet's props; the snippet drops it there,
 	// because it is not an HTML attribute.
 
+	// Bits UI's portal and content mount on the first open, so a closed
+	// dialog costs only its trigger.
+	const layers = mountOnFirstOpen(() => open);
+
 	function close() {
 		open = false;
+	}
+
+	// Focus starts on the close button, the first control Bits UI finds,
+	// unless `initialFocus` names another element. An app's own
+	// onOpenAutoFocus runs first and may take over by calling
+	// preventDefault().
+	function openAutoFocus(e: Event) {
+		onOpenAutoFocus?.(e);
+		if (e.defaultPrevented) return;
+		const target = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
+		if (!target) return;
+		e.preventDefault();
+		target.focus();
 	}
 
 	// The centred dialog fades in place; the full-screen one slides up like
@@ -109,7 +138,7 @@
 	}
 </script>
 
-<BitsDialog.Root bind:open>
+<BitsDialog.Root bind:open={() => layers.open, (value) => (open = value)}>
 	{#if trigger}
 		<BitsDialog.Trigger>
 			{#snippet child({ props })}
@@ -118,70 +147,73 @@
 		</BitsDialog.Trigger>
 	{/if}
 
-	<BitsDialog.Portal>
-		<BitsDialog.Content
-			forceMount
-			bind:ref
-			aria-labelledby={titleId}
-			aria-describedby={description ? descriptionId : undefined}
-			interactOutsideBehavior={fullscreen ? 'ignore' : 'close'}
-			{...rest}
-		>
-			{#snippet child({ props: { interactOutsideBehavior: _, ...props }, open: shown })}
-				{#if form === 'sheet'}
-					<Sheet
-						{...props}
-						class={['hp-dialog', className]}
-						data-form="sheet"
-						open={shown}
-						layer="dialog"
-						{title}
-						{titleId}
-						titleTag="h2"
-						{closeLabel}
-						onclose={close}
-						footer={actions ? actionRow : undefined}
-					>
-						{@render body()}
-					</Sheet>
-				{:else}
-					<Scrim open={shown} layer="dialog" />
-					{#if shown}
-						<div
+	{#if layers.mounted}
+		<BitsDialog.Portal>
+			<BitsDialog.Content
+				forceMount
+				bind:ref
+				aria-labelledby={titleId}
+				aria-describedby={description ? descriptionId : undefined}
+				interactOutsideBehavior={fullscreen ? 'ignore' : 'close'}
+				onOpenAutoFocus={openAutoFocus}
+				{...rest}
+			>
+				{#snippet child({ props: { interactOutsideBehavior: _, ...props }, open: shown })}
+					{#if form === 'sheet'}
+						<Sheet
 							{...props}
 							class={['hp-dialog', className]}
-							data-form={form}
-							style:top={lifted ? `${lifted.top}px` : undefined}
-							style:bottom={lifted ? 'auto' : undefined}
-							style:height={lifted ? `${lifted.height}px` : undefined}
-							style:padding-bottom={lifted ? '0px' : undefined}
-							transition:panel
+							data-form="sheet"
+							open={shown}
+							layer="dialog"
+							{title}
+							{titleId}
+							titleTag="h2"
+							{closeLabel}
+							onclose={close}
+							footer={actions ? actionRow : undefined}
 						>
-							<div class="hp-dialog-head" data-form={form}>
-								<h2 id={titleId} class="hp-dialog-title hp-view-title">{title}</h2>
-								<button type="button" class="hp-dialog-close" aria-label={closeLabel} onclick={close}>
-									<svg
-										viewBox="0 0 16 16"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="1.5"
-										stroke-linecap="square"
-										aria-hidden="true"
-									>
-										<path d="M3 3l10 10M13 3L3 13" />
-									</svg>
-								</button>
-							</div>
 							{@render body()}
-							{#if actions}
-								{@render actionRow()}
-							{/if}
-						</div>
+						</Sheet>
+					{:else}
+						<Scrim open={shown} layer="dialog" />
+						{#if shown}
+							<div
+								{...props}
+								class={['hp-dialog', className]}
+								data-form={form}
+								style:top={lifted ? `${lifted.top}px` : undefined}
+								style:bottom={lifted ? 'auto' : undefined}
+								style:height={lifted ? `${lifted.height}px` : undefined}
+								style:padding-bottom={lifted ? '0px' : undefined}
+								transition:panel
+							>
+								<div class="hp-dialog-head" data-form={form}>
+									<h2 id={titleId} class="hp-dialog-title hp-view-title">{title}</h2>
+									<button type="button" class="hp-dialog-close" aria-label={closeLabel} onclick={close}>
+										<svg
+											viewBox="0 0 16 16"
+											fill="none"
+											stroke="currentColor"
+											stroke-width="1.5"
+											stroke-linecap="square"
+											aria-hidden="true"
+										>
+											<path d="M3 3l10 10M13 3L3 13" />
+										</svg>
+									</button>
+								</div>
+								{@render body()}
+								{#if actions}
+									{@render actionRow()}
+								{/if}
+							</div>
+						{/if}
 					{/if}
-				{/if}
-			{/snippet}
-		</BitsDialog.Content>
-	</BitsDialog.Portal>
+				{/snippet}
+			</BitsDialog.Content>
+		</BitsDialog.Portal>
+	{/if}
 </BitsDialog.Root>
 
 {#snippet body()}

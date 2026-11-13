@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import { Button, Notice } from '#lib';
 
 	// A notice the user may close: the app removes it, and puts it back for the demo.
@@ -261,6 +262,15 @@
 				and 14px with a mouse. A notice has no motion: it appears and goes at once.
 			</li>
 		</ul>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'closeLabel', value: 'Dismiss', shows: 'The accessible name of the close button that onclose adds.' }
+			]}
+		/>
 	</section>
 </main>
 

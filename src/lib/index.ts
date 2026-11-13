@@ -1,8 +1,8 @@
-export { default as Button, type ButtonProps, type ButtonVariant } from './components/Button.svelte';
+export { default as Button, type ButtonProps, type ButtonTone, type ButtonVariant } from './components/Button.svelte';
 export {
 	default as NativeSelect,
 	type NativeSelectBreakpoint,
-	type NativeSelectOption
+	type NativeSelectItem
 } from './components/NativeSelect.svelte';
 export { default as Pagination, type PaginationProps } from './components/Pagination.svelte';
 export {
@@ -48,7 +48,7 @@ export { default as ErrorState, type ErrorStateProps, type ErrorStateTitleElemen
 export { default as Notice, type NoticeProps, type NoticeTitleElement, type NoticeTone } from './components/Notice.svelte';
 export { default as Popover, type PopoverActionsSnippetProps, type PopoverProps, type PopoverTriggerSnippetProps } from './components/Popover.svelte';
 export { default as Menu, type MenuProps, type MenuTriggerSnippetProps } from './components/Menu.svelte';
-export { default as MenuItem, type MenuItemProps, type MenuItemVariant } from './components/MenuItem.svelte';
+export { default as MenuItem, type MenuItemProps, type MenuItemTone } from './components/MenuItem.svelte';
 export { default as MenuCheckboxItem, type MenuCheckboxItemProps } from './components/MenuCheckboxItem.svelte';
 export { default as MenuRadioGroup, type MenuRadioGroupProps } from './components/MenuRadioGroup.svelte';
 export { default as MenuRadioItem, type MenuRadioItemProps } from './components/MenuRadioItem.svelte';

@@ -10,10 +10,17 @@
 //      (the frequency check, BRIEF "Motion");
 //   3. does all of this for every trigger inside the open overlay (a select in a dialog), two levels deep;
 //   4. closes it with Escape and times every animation the closing started.
+// Opening and closing are shared with the layer pass of the default audit (scripts/lib/overlays.mjs).
 // On a page that mounts a Toaster (its status line carries .hp-toaster-status), no trigger opens the toast,
 // so the pass then calls the page's own toast(): it imports the module the page loaded from the dev
 // server (/src/lib/components/toast.svelte.ts), shows a toast, replaces it with a second one, and dismisses
 // it with its close button (tap or click), timing each step.
+// Every animation that starts anywhere on the page between a step and its settling counts for that step.
+// The pass starts only once the page has finished its own loading (audit.mjs waits for it, see
+// scripts/lib/page-ready.mjs), so a late page animation, such as /app/detail's photo fading in after its
+// simulated network, is not timed against the overlay opened at that moment. Judging the whole page keeps
+// in view what an opening does outside its own layer, such as a page behind a sheet that moves under
+// reduced motion; counting only animations inside the overlay, its scrim and its trigger would hide that.
 // Durations are compared with the --dur-* tokens as the animated element computes them, so an app that
 // retunes a token is judged by its own value:
 //   Svelte transitions (element.animate): --dur-pop / --dur-pop-exit on floating content (menus,
@@ -32,9 +39,8 @@
 // element must end at opacity 1 with no transform, and under reduced motion nothing may change but opacity
 // and colour.
 // Failures are reported; the tokens are the reference and never change to pass.
-import { installMotionRecorder } from './motion-page.mjs';
+import { TRIGGERS, overlayDriver } from './overlays.mjs';
 
-const TRIGGERS = '[aria-haspopup], [aria-expanded], [data-tooltip-trigger]';
 const COLOUR = /colou?r$|^(fill|stroke)$/i;
 const OVERLAY = new Set(['opacity', 'transform', 'translate', 'rotate', 'scale']);
 const IDENTITY = new Set(['none', 'matrix(1, 0, 0, 1, 0, 0)']);
@@ -59,52 +65,22 @@ function expected(r, phase) {
 const what = (r) => `${r.target} (${r.type === 'Animation' ? 'transition' : r.type}${r.property ? ' ' + r.property : ''}${r.name ? ' ' + r.name : ''})`;
 
 /**
- * Returns { checked, findings, timings }; findings use check 'motion'. `wait` is the settle time after a
- * load (audit.mjs --wait), used again when the pass reloads the page.
+ * Returns { checked, findings, timings }; findings use check 'motion'. `ready(page)` is the wait after a
+ * load, used again when the pass reloads the page: audit.mjs passes its own; a script that prepared the
+ * page itself may leave it out (fonts, 600 ms and the page's own loading, scripts/lib/page-ready.mjs).
  */
-export async function auditMotion(page, { coarse, wait = 600 }) {
+export async function auditMotion(page, { coarse, ready }) {
   const findings = [];
   const timings = [];
   const checked = { overlays: 0, opened: 0, nested: 0, byKeyboard: 0, animations: 0, lists: 0, skipped: 0 };
-  const api = (fn, arg) => page.evaluate(fn, arg);
-  const settle = () => api(() => window.__hpMotion.settle());
+  const driver = overlayDriver(page, { coarse, selector: TRIGGERS, ready });
+  const { api, settle, state, tag, locate, until, focus, reload } = driver;
   const mark = () => api(() => window.__hpMotion.mark());
   const take = () => api(() => window.__hpMotion.take());
-  const state = (id) => api((i) => window.__hpMotion.state(i), id);
   const lists = () => api(() => window.__hpMotion.lists());
   const highlight = () => api(() => window.__hpMotion.highlight());
-  const tag = () => api((s) => window.__hpMotion.tag(s), TRIGGERS);
-  const until = async (id, want, timeout) => {
-    const end = Date.now() + timeout;
-    while (Date.now() < end) {
-      if ((await state(id)) === want) return true;
-      await page.waitForTimeout(50);
-    }
-    return (await state(id)) === want;
-  };
-  const focus = async (locator) => {
-    try {
-      await locator.focus({ timeout: 2000 });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  const install = async () => {
-    await api(installMotionRecorder);
-    await settle();
-    return tag();
-  };
-  // Start over on a fresh copy of the page after an overlay that would not open or close. The page's
-  // triggers get the same ids again, because they are numbered in document order with everything closed.
-  const reload = async () => {
-    await page.reload({ waitUntil: 'load', timeout: 30000 });
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForTimeout(wait);
-    await install();
-  };
 
-  const triggers = await install();
+  const triggers = await driver.install();
   const reduced = await api(() => window.__hpMotion.reduced());
 
   const report = (trig, status, message) => findings.push({ check: 'motion', status, selector: trig.selector, text: trig.text, message });
@@ -149,11 +125,10 @@ export async function auditMotion(page, { coarse, wait = 600 }) {
     }
     checked.overlays++;
     if (depth) checked.nested++;
-    const locator = page.locator(`[data-motion-audit="${trig.id}"]`);
+    const locator = locate(trig);
     // A disclosure that starts open shows at once, and that is not timed. Close it with a press, then run it.
     if (trig.disclosure && (await state(trig.id)) === 'open') {
-      if (coarse) await locator.tap({ timeout: 5000 });
-      else await locator.click({ timeout: 5000 });
+      await driver.press(locator);
       await until(trig.id, 'closed', 1500);
       await settle();
     }
@@ -164,37 +139,27 @@ export async function auditMotion(page, { coarse, wait = 600 }) {
     }
 
     // 1. Open.
-    const verb = trig.tooltip ? 'hover' : coarse ? 'tap' : 'click';
     await settle();
     const listsBefore = await lists();
     await mark();
-    await api((i) => window.__hpMotion.watch(i), trig.id);
-    try {
-      if (trig.tooltip) await locator.hover({ timeout: 5000 });
-      else if (coarse) await locator.tap({ timeout: 5000 });
-      else await locator.click({ timeout: 5000 });
-    } catch (e) {
-      await api((i) => window.__hpMotion.watched(i), trig.id);
-      add('unchecked', `could not ${verb} it: ${String(e).split('\n')[0].slice(0, 200)}`);
+    const opening = await driver.open(trig, {
+      beforeKeyboard: async () => {
+        await settle();
+        await mark(); // judge only the keyboard opening
+      },
+    });
+    if (opening.error) {
+      add('unchecked', opening.error);
       await reload();
       return false;
     }
-    let open = await until(trig.id, 'open', trig.tooltip ? 3000 : 1500);
-    const changes = await api((i) => window.__hpMotion.watched(i), trig.id);
-    const closedItself = !open && changes.includes('open');
     // Seen on a touch sheet that fades in place: the tap's click lands on the item now under the finger.
-    if (closedItself) add('fail', `the ${verb} opened it, and it closed again by itself at once`);
-    if (!open && !trig.tooltip && (await focus(locator))) {
-      await settle();
-      await mark(); // judge only the keyboard opening
-      await page.keyboard.press('ArrowDown');
-      open = await until(trig.id, 'open', 1500);
-      if (open) {
-        checked.byKeyboard++;
-        if (!closedItself) add('unchecked', `the ${verb} opened nothing; opened from the keyboard instead`);
-      }
+    if (opening.closedItself) add('fail', `the ${opening.verb} opened it, and it closed again by itself at once`);
+    if (opening.byKeyboard) {
+      checked.byKeyboard++;
+      if (!opening.closedItself) add('unchecked', `the ${opening.verb} opened nothing; opened from the keyboard instead`);
     }
-    if (!open) {
+    if (!opening.open) {
       add('unchecked', 'did not open; not timed');
       await reload();
       return false;
@@ -247,16 +212,7 @@ export async function auditMotion(page, { coarse, wait = 600 }) {
     // 4. Close.
     await settle();
     await mark();
-    if (trig.disclosure) {
-      if (coarse) await locator.tap({ timeout: 5000 });
-      else await locator.click({ timeout: 5000 });
-    } else await page.keyboard.press('Escape');
-    let closed = await until(trig.id, 'closed', 1500);
-    if (!closed && trig.tooltip) {
-      await page.mouse.move(0, 0);
-      closed = await until(trig.id, 'closed', 1500);
-    }
-    if (!closed) {
+    if (!(await driver.close(trig))) {
       add('unchecked', 'did not close with Escape; exit not timed');
       await reload();
       return false;
@@ -266,25 +222,14 @@ export async function auditMotion(page, { coarse, wait = 600 }) {
     return true;
   }
 
-  // 5. The toast: shown, replaced, and dismissed with its close button. The module is the one the page
-  // loaded (its URL may carry Vite's ?t= after a hot update), so toast() reaches the page's Toaster.
+  // 5. The toast: shown, replaced, and dismissed with its close button.
   async function exerciseToast() {
-    const trig = { selector: 'section.hp-toaster', text: 'toast()' };
-    const box = page.locator('section.hp-toaster');
-    const show = (message) =>
-      api(async (m) => {
-        const path = '/src/lib/components/toast.svelte.ts';
-        const loaded = performance.getEntriesByType('resource').find((e) => new URL(e.name).pathname === path);
-        const { toast } = await import(loaded?.name ?? path);
-        toast(m);
-      }, message);
+    const trig = { selector: driver.toast.selector, text: 'toast()' };
     checked.overlays++;
     await settle();
     await mark();
-    await show('Motion audit');
-    try {
-      await box.waitFor({ timeout: 1500 });
-    } catch {
+    await driver.toast.show('Motion audit');
+    if (!(await driver.toast.shown())) {
       report(trig, 'unchecked', 'toast() showed no toast; not timed');
       return;
     }
@@ -292,15 +237,12 @@ export async function auditMotion(page, { coarse, wait = 600 }) {
     await settle();
     judge(trig, 'open', await take());
     await mark();
-    await show('Motion audit, replaced');
+    await driver.toast.show('Motion audit, replaced');
     await settle();
     judge(trig, 'replace', await take());
     await mark();
-    const close = box.locator('.hp-toaster-close');
     try {
-      if (coarse) await close.tap({ timeout: 5000 });
-      else await close.click({ timeout: 5000 });
-      await box.waitFor({ state: 'detached', timeout: 1500 });
+      await driver.toast.dismiss();
     } catch (e) {
       report(trig, 'unchecked', `the close button did not dismiss it (${String(e).split('\n')[0].slice(0, 200)}); exit not timed`);
       return;
@@ -310,6 +252,6 @@ export async function auditMotion(page, { coarse, wait = 600 }) {
   }
 
   for (const trig of triggers) await exercise(trig, 0);
-  if (await api(() => !!document.querySelector('.hp-toaster-status'))) await exerciseToast();
+  if (await driver.toast.present()) await exerciseToast();
   return { checked, findings, timings };
 }

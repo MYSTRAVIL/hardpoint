@@ -37,3 +37,14 @@
 	width: 320px;
 	max-width: 100%;
 }
+
+/* An app rule with a type selector: .hp-selected has no specificity, so this tint wins. */
+own-row {
+	display: block;
+	background: rgb(10, 20, 30);
+}
+.selected-list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}

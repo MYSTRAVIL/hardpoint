@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import Dialog from '#lib/components/Dialog.svelte';
 	import NativeSelect from '#lib/components/NativeSelect.svelte';
 	import Select, { type SelectItem } from '#lib/components/Select.svelte';
+	import TextField from '#lib/components/TextField.svelte';
 
 	// Confirmation
 	let archived = $state('');
@@ -61,6 +64,22 @@
 		renameOpen = false;
 	}
 
+	// Where focus starts
+	let labelOpen = $state(false);
+	let labelField = $state<HTMLInputElement | null>(null);
+	let labelName = $state('Quarterly review');
+	let labelDraft = $state('');
+	$effect.pre(() => {
+		if (labelOpen) labelDraft = untrack(() => labelName);
+	});
+	function renameLabel(e: SubmitEvent) {
+		e.preventDefault();
+		if (labelDraft.trim()) labelName = labelDraft.trim();
+		labelOpen = false;
+	}
+	let cancelButton = $state<HTMLElement | null>(null);
+	let deleted = $state('');
+
 	const layers = [
 		['--layer-sticky', '3', 'Sticky parts of the content, such as the table header band.'],
 		['--layer-shell', '5', 'The app shell’s header and bottom bar.'],
@@ -98,6 +117,10 @@
 				<code>open</code> from anywhere. Closing returns focus to the element that had it.
 			</li>
 			<li>
+				A dialog that was never opened mounts only its trigger, so a view can hold many. The dialog mounts
+				on the first open and stays mounted after it.
+			</li>
+			<li>
 				<code>actions</code> renders the action row and receives <code>close</code>. The primary action
 				goes last and is the dialog’s one solid block.
 			</li>
@@ -110,8 +133,15 @@
 				shrinks to the space above the keyboard instead, title row and actions included.
 			</li>
 			<li>
+				<code>initialFocus</code> starts focus on another element in the dialog: the element itself, or a
+				function that returns it as the dialog opens. When it gives no element, focus starts on the close
+				button.
+			</li>
+			<li>
 				Extra attributes go to the dialog element, with Bits UI’s <code>onOpenAutoFocus</code>,
-				<code>onCloseAutoFocus</code>, <code>onEscapeKeydown</code> and <code>onInteractOutside</code>.
+				<code>onCloseAutoFocus</code>, <code>onEscapeKeydown</code> and <code>onInteractOutside</code>. The
+				app’s own <code>onOpenAutoFocus</code> runs first; when it calls <code>preventDefault()</code>, the
+				dialog leaves focus to it and ignores <code>initialFocus</code>.
 			</li>
 		</ul>
 	</section>
@@ -167,7 +197,7 @@
 						<input id="task-title" class="hp-well" name="title" autocomplete="off" enterkeyhint="next" required />
 					</div>
 					<Select label="Assignee" name="assignee" items={people} placeholder="Choose a person" />
-					<NativeSelect label="Priority" name="priority" options={priorities} value="normal" />
+					<NativeSelect label="Priority" name="priority" items={priorities} value="normal" />
 					<div class="field">
 						<label class="hp-label field-label" for="task-due">Due date</label>
 						<input id="task-due" class="hp-well" name="due" type="date" />
@@ -238,6 +268,67 @@
 		</div>
 	</section>
 
+	<section aria-labelledby="focus">
+		<h2 id="focus" class="hp-section-title">Where focus starts</h2>
+		<p class="lede">
+			<code>initialFocus</code> moves the first focus off the close button. A dialog whose task is typing
+			starts on its field. A confirmation that deletes starts on Cancel, so an <kbd>Enter</kbd> pressed out
+			of habit deletes nothing.
+		</p>
+		<div class="row">
+			<Dialog title="Rename label" bind:open={labelOpen} initialFocus={() => labelField}>
+				{#snippet trigger({ props })}
+					<Button {...props}>Rename label</Button>
+				{/snippet}
+				<form id="rename-label" class="form" onsubmit={renameLabel}>
+					<TextField
+						label="Name"
+						name="name"
+						autocomplete="off"
+						enterkeyhint="done"
+						bind:value={labelDraft}
+						bind:ref={labelField}
+					/>
+				</form>
+				{#snippet actions({ close })}
+					<Button onclick={close}>Cancel</Button>
+					<Button variant="primary" type="submit" form="rename-label">Rename</Button>
+				{/snippet}
+			</Dialog>
+			<p class="hp-caption readout" aria-live="polite">label: <code>{labelName}</code></p>
+		</div>
+		<div class="row">
+			<Dialog
+				title="Delete file"
+				description="budget-2027.xlsx is deleted for every member. This cannot be undone."
+				initialFocus={cancelButton}
+			>
+				{#snippet trigger({ props })}
+					<Button {...props}>Delete file</Button>
+				{/snippet}
+				{#snippet actions({ close })}
+					<Button
+						bind:ref={cancelButton}
+						onclick={() => {
+							deleted = 'cancelled';
+							close();
+						}}>Cancel</Button
+					>
+					<Button
+						variant="primary"
+						onclick={() => {
+							deleted = 'deleted';
+							close();
+						}}>Delete</Button
+					>
+				{/snippet}
+			</Dialog>
+			<p class="hp-caption readout" aria-live="polite">
+				{#if deleted}last answer: <code>{deleted}</code>{:else}No answer yet.{/if}
+			</p>
+		</div>
+	</section>
+
 	<section aria-labelledby="layers">
 		<h2 id="layers" class="hp-section-title">Layers</h2>
 		<p class="lede">
@@ -252,6 +343,15 @@
 				</div>
 			{/each}
 		</dl>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'closeLabel', value: 'Close', shows: 'The accessible name of the close button, in the dialog and in the sheet below 600px.' }
+			]}
+		/>
 	</section>
 </main>
 

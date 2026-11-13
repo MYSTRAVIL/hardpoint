@@ -7,5 +7,5 @@ export const CSP =
 
 export default defineConfig({
 	plugins: [svelte()],
-	preview: { host: '127.0.0.1', port: 4180, strictPort: true, headers: { 'Content-Security-Policy': CSP } }
+	preview: { host: '127.0.0.1', port: Number(process.env.CONSUMER_PORT || 4180), strictPort: true, headers: { 'Content-Security-Policy': CSP } }
 });

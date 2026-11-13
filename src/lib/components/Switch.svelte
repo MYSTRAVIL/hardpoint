@@ -1,38 +1,98 @@
 <script lang="ts" module>
 	import { Switch as BitsSwitch } from 'bits-ui';
 
+	/**
+	 * The switch's accessible name: exactly one of a visible `label`, an
+	 * `aria-label` or an `aria-labelledby`. The types allow one.
+	 */
+	type SwitchName =
+		| {
+				/**
+				 * The setting's name, as written (never caps), at the start of the
+				 * line; the switch sits at its end. Pressing anywhere on the label
+				 * turns the switch on or off.
+				 */
+				label: string;
+				'aria-label'?: never;
+				'aria-labelledby'?: never;
+		  }
+		| {
+				label?: never;
+				/** The accessible name of a switch with no visible label, such as a table row's. */
+				'aria-label': string;
+				'aria-labelledby'?: never;
+		  }
+		| {
+				label?: never;
+				'aria-label'?: never;
+				/** The id of the element that names the switch. */
+				'aria-labelledby': string;
+		  };
+
 	/** Attributes and handlers not listed here go to the switch button. */
-	export type SwitchProps = Omit<BitsSwitch.RootProps, 'child' | 'children' | 'ref'> & {
-		/**
-		 * The setting's name, as written (never caps), at the start of the line;
-		 * the switch sits at its end. Pressing anywhere on the label turns the
-		 * switch on or off. Without it, give the switch an accessible name with
-		 * `aria-label`.
-		 */
-		label?: string;
-		/** A second line in `--muted` under the label, read out as the switch's description. */
-		hint?: string;
-		/** The switch button. */
-		ref?: HTMLElement | null;
-	};
+	export type SwitchProps = Omit<
+		BitsSwitch.RootProps,
+		'child' | 'children' | 'ref' | 'aria-label' | 'aria-labelledby'
+	> &
+		SwitchName & {
+			/** A second line in `--muted` under the label, read out as the switch's description. */
+			hint?: string;
+			/**
+			 * The error to show under the row, with an icon, linked by
+			 * `aria-describedby`; it sets `aria-invalid`, and the track's edge
+			 * turns `--danger`. Say how to fix the problem. The app validates;
+			 * the switch shows what it is given.
+			 */
+			error?: string;
+			/** The switch button. */
+			ref?: HTMLElement | null;
+		};
 </script>
 
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { fadeIn } from './internal/fade-in.js';
+
 	const uid = $props.id();
 
 	let {
 		checked = $bindable(false),
 		label,
 		hint,
+		error,
 		id = uid,
 		ref = $bindable(null),
 		class: className,
 		'aria-describedby': describedBy,
+		'aria-invalid': ariaInvalid,
 		...rest
 	}: SwitchProps = $props();
 
 	const hintId = $derived(`${id}-hint`);
-	const describedByIds = $derived([hint ? hintId : null, describedBy].filter(Boolean).join(' ') || undefined);
+	const errorId = $derived(`${id}-error`);
+	// The error first, so a screen reader reads it before the hint.
+	const describedByIds = $derived(
+		[error ? errorId : undefined, hint ? hintId : undefined, describedBy].filter(Boolean).join(' ') ||
+			undefined
+	);
+
+	// ---- Short motion: the error (BRIEF, --dur-message) --------------------
+
+	// As in TextField: an error that appears after the first render fades in
+	// from 0 over --dur-message, and the track's edge fades to --danger with
+	// it (the CSS below). An error that clears goes at once, and so does the
+	// red edge. A switch that renders with an error shows it at once.
+	let root: HTMLDivElement | null = $state(null);
+	let errorShown = untrack(() => !!error);
+	$effect(() => {
+		const shown = !!error;
+		untrack(() => {
+			const appeared = shown && !errorShown;
+			errorShown = shown;
+			const message = appeared ? root?.querySelector(':scope > .error') : null;
+			if (message) fadeIn(message, '--dur-message');
+		});
+	});
 </script>
 
 <!--
@@ -42,12 +102,19 @@
 	the end of its line, then the hint. Attributes, handlers and `class` go to
 	the button.
 -->
-<div class="hp-switch">
+<div bind:this={root} class="hp-switch" data-invalid={error ? '' : undefined}>
 	{#if label}
 		<label class="hp-dense" for={id}>{label}</label>
 	{/if}
 	<span class="control">
-		<BitsSwitch.Root bind:checked bind:ref {id} aria-describedby={describedByIds} {...rest}>
+		<BitsSwitch.Root
+			bind:checked
+			bind:ref
+			{id}
+			aria-describedby={describedByIds}
+			aria-invalid={error ? true : ariaInvalid}
+			{...rest}
+		>
 			{#snippet child({ props })}
 				<button {...props} class={['track', className]}>
 					<BitsSwitch.Thumb>
@@ -61,6 +128,17 @@
 	</span>
 	{#if hint}
 		<p class="hint hp-caption" id={hintId}>{hint}</p>
+	{/if}
+	{#if error}
+		<p class="error hp-caption" id={errorId}>
+			<span class="icon" aria-hidden="true">
+				<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor">
+					<path d="M1.5 1.5h13v13h-13z" />
+					<path d="M8 4v4M8 10v2" stroke-width="2" />
+				</svg>
+			</span>
+			<span>{error}</span>
+		</p>
 	{/if}
 </div>
 
@@ -177,6 +255,44 @@
 		color: var(--muted);
 	}
 
+	/* The error: TextField's message, 8px under the whole row (the hint
+	   included), clear of the track's focus contour. It spans the label's
+	   column and the switch's. */
+	.error {
+		grid-column: 1 / -1;
+		display: flex;
+		gap: var(--space-2);
+		margin: var(--space-2) 0 0;
+		color: var(--danger);
+	}
+	/* One line box high, so the icon centres on the first line of the
+	   message however it wraps. */
+	.icon {
+		display: flex;
+		flex: none;
+		align-items: center;
+		height: 1lh;
+	}
+	.icon svg {
+		display: block;
+	}
+
+	/* Invalid: the track's edge turns --danger (5.9:1 on black), never
+	   alone: the icon and the message say what is wrong. A single switch has
+	   one boundary, as a TextField's well. Keyed on the root's data-invalid,
+	   set by `error`, so an aria-invalid the app passes without a message
+	   draws no red edge. The edge fades to --danger over --dur-message with
+	   the message; the transition belongs to this rule, so the edge goes
+	   back at once when the error clears. Danger wins over the on edge and
+	   over hover. */
+	[data-invalid] .track {
+		border-color: var(--danger);
+		transition: border-color var(--dur-message) var(--settle);
+	}
+	[data-invalid] .track:disabled {
+		border-color: var(--border);
+	}
+
 	/* ---- Hover: fine pointers only, over the switch or its label ------- */
 
 	@media (hover: hover) and (pointer: fine) {
@@ -185,10 +301,15 @@
 				background-color var(--dur-hover) var(--settle),
 				border-color var(--dur-hover) var(--settle);
 		}
+		[data-invalid] .track {
+			transition:
+				background-color var(--dur-hover) var(--settle),
+				border-color var(--dur-message) var(--settle);
+		}
 		.hp-switch:has(> label:hover, .track:hover) .track:not(:disabled) {
 			background-color: var(--surface-hover);
 		}
-		.hp-switch:has(> label:hover, .track:hover) .track[data-state='unchecked']:not(:disabled) {
+		.hp-switch:not([data-invalid]):has(> label:hover, .track:hover) .track[data-state='unchecked']:not(:disabled) {
 			border-color: var(--muted);
 		}
 		.hp-switch:has(> label:active, .track:active) .track:not(:disabled) {

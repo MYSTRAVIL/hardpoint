@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import EmptyState from '#lib/components/EmptyState.svelte';
 	import ErrorState from '#lib/components/ErrorState.svelte';
@@ -210,13 +211,13 @@
 			</li>
 			<li>
 				<strong>Empty.</strong> <code>EmptyState</code> takes a <code>title</code>, an optional
-				<code>description</code> and one <code>action</code> snippet for a <code>Button</code>. Say why
+				<code>description</code> and an <code>actions</code> snippet for the next <code>Button</code>. Say why
 				the view is empty and what fills it.
 			</li>
 			<li>
 				<strong>Error.</strong> <code>ErrorState</code> takes a <code>title</code> saying what failed and a
 				<code>description</code> saying how to fix it, without apologising. <code>onretry</code> adds a
-				retry button (<code>retryLabel</code>, default <code>Try again</code>); <code>action</code> adds
+				retry button (<code>retryLabel</code>, default <code>Try again</code>); <code>actions</code> adds
 				a fix that is not a retry. A square with a “!” in the status red marks the title, and the title
 				and description are a <code>role="alert"</code> region.
 			</li>
@@ -254,7 +255,7 @@
 						/>
 					{:else}
 						<EmptyState title="No tasks yet" description="Tasks you create or are assigned appear here.">
-							{#snippet action()}
+							{#snippet actions()}
 								<Button
 									onclick={() => {
 										keepFocus();
@@ -289,7 +290,7 @@
 		<Table label="Tasks" rows={[] as Task[]} {columns} {stack} key="id" total={0}>
 			{#snippet empty()}
 				<EmptyState title="No tasks yet" description="Tasks you create or are assigned appear here.">
-					{#snippet action()}
+					{#snippet actions()}
 						<Button href="#empty">Create a task</Button>
 					{/snippet}
 				</EmptyState>
@@ -315,7 +316,7 @@
 		<Table label="Tasks" rows={matches} {columns} {stack} key="id" total={matches.length}>
 			{#snippet empty()}
 				<EmptyState title="No tasks match these filters" description="Clear a filter to see more tasks.">
-					{#snippet action()}
+					{#snippet actions()}
 						<Button onclick={clearFilters}>Clear filters</Button>
 					{/snippet}
 				</EmptyState>
@@ -342,7 +343,7 @@
 	<section aria-labelledby="other-fix">
 		<h2 id="other-fix" class="hp-section-title">An error that a retry cannot fix</h2>
 		<p class="lede">
-			<code>action</code> carries the fix instead of a retry. Without <code>onretry</code> there is no
+			<code>actions</code> carries the fix instead of a retry. Without <code>onretry</code> there is no
 			retry button.
 		</p>
 		<Table label="Tasks in Website relaunch" rows={[] as Task[]} {columns} {stack} key="id">
@@ -351,7 +352,7 @@
 					title="You can’t see this project’s tasks"
 					description="Only members of Website relaunch can see its tasks. Ask its owner, Lena Fischer, to add you."
 				>
-					{#snippet action()}
+					{#snippet actions()}
 						<Button href="#other-fix">Request access</Button>
 					{/snippet}
 				</ErrorState>
@@ -375,7 +376,7 @@
 							title="No projects yet"
 							description="Projects group tasks, files and people. Create one to start."
 						>
-							{#snippet action()}
+							{#snippet actions()}
 								<Button href="#display">Create a project</Button>
 							{/snippet}
 						</EmptyState>
@@ -444,6 +445,15 @@
 				</div>
 			</div>
 		</LoadRegion>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'retryLabel', value: 'Try again', shows: 'The text of ErrorState’s retry button, which onretry adds.' }
+			]}
+		/>
 	</section>
 </main>
 

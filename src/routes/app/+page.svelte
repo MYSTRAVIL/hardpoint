@@ -194,7 +194,7 @@
 						title="No projects match these filters"
 						description="Try another status or priority, or clear the search."
 					>
-						{#snippet action()}
+						{#snippet actions()}
 							<Button type="button" onclick={clearFilters}>Clear filters</Button>
 						{/snippet}
 					</EmptyState>

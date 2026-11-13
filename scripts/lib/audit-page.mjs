@@ -3,11 +3,17 @@
 //
 // Returns { findings, checked }. A finding is { check, status, selector, text, message, ...extra } with
 // status 'fail' | 'unchecked' | 'exempt'. `checked` counts the elements each check examined.
-export function auditPage({ width, coarse, minTarget, minInputFont }) {
+// With `layer: true` the checks look only inside the elements marked [data-audit-layer] (an open overlay,
+// marked by scripts/lib/audit-layers.mjs), so nothing on the page behind is checked twice. Overflow then
+// means a part of the layer that reaches past the left or right edge of the viewport: a layer is usually
+// fixed, so it cannot widen the page.
+export function auditPage({ width, coarse, minTarget, minInputFont, layer = false }) {
   const findings = [];
   const checked = { targets: 0, inputs: 0, contrast: 0, boundaries: 0 };
   const vw = window.innerWidth;
   const vh = window.innerHeight;
+  const roots = layer ? [...document.querySelectorAll('[data-audit-layer]')] : [document.body];
+  const inScope = (el) => !layer || roots.some((r) => r.contains(el));
 
   // ---------- helpers ----------
   const esc = (s) => (window.CSS && CSS.escape ? CSS.escape(s) : s);
@@ -127,8 +133,43 @@ export function auditPage({ width, coarse, minTarget, minInputFont }) {
 
   // ---------- 2. overflow (first, before anything scrolls) ----------
   const de = document.documentElement;
-  // Mobile emulation grows window.innerWidth to fit overflowing content, so compare with the configured width.
-  if (de.scrollWidth > width || vw > width) {
+  const outermost = (offenders) => {
+    const inner = new Set();
+    for (const el of offenders) for (let p = el.parentElement; p; p = p.parentElement) if (offenders.has(p)) inner.add(p);
+    return [...offenders]
+      .filter((el) => !inner.has(el))
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .sort((a, b) => Math.max(b.r.right - width, -b.r.left) - Math.max(a.r.right - width, -a.r.left))
+      .slice(0, 6)
+      .map(({ el, r }) => ({ selector: sel(el), right: Math.round(r.right), width: Math.round(r.width) }));
+  };
+  if (layer) {
+    // Anything in the layer past either edge, unless an ancestor clips or scrolls it sideways.
+    const offenders = new Set();
+    for (const root of roots) {
+      for (const el of [root, ...root.querySelectorAll('*')]) {
+        const r = el.getBoundingClientRect();
+        if (r.right <= width + 0.5 && r.left >= -0.5) continue;
+        if (!visible(el)) continue;
+        let clipped = false;
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          if (/^(auto|scroll|hidden|clip)$/.test(getComputedStyle(p).overflowX)) {
+            clipped = true;
+            break;
+          }
+        }
+        if (!clipped) offenders.add(el);
+      }
+    }
+    if (offenders.size) {
+      findings.push({
+        check: 'overflow', status: 'fail', selector: null, text: null,
+        message: `the layer reaches past the viewport (0 to ${width}px)`,
+        offenders: outermost(offenders),
+      });
+    }
+  } else if (de.scrollWidth > width || vw > width) {
+    // Mobile emulation grows window.innerWidth to fit overflowing content, so compare with the configured width.
     const offenders = new Set();
     for (const el of document.body.querySelectorAll('*')) {
       const cs = getComputedStyle(el);
@@ -146,18 +187,10 @@ export function auditPage({ width, coarse, minTarget, minInputFont }) {
       }
       if (!clipped) offenders.add(el);
     }
-    const inner = new Set();
-    for (const el of offenders) for (let p = el.parentElement; p; p = p.parentElement) if (offenders.has(p)) inner.add(p);
-    const list = [...offenders]
-      .filter((el) => !inner.has(el))
-      .map((el) => ({ el, r: el.getBoundingClientRect() }))
-      .sort((a, b) => b.r.right - a.r.right)
-      .slice(0, 6)
-      .map(({ el, r }) => ({ selector: sel(el), right: Math.round(r.right), width: Math.round(r.width) }));
     findings.push({
       check: 'overflow', status: 'fail', selector: null, text: null,
       message: `scrollWidth ${de.scrollWidth} > viewport width ${width}`,
-      offenders: list,
+      offenders: outermost(offenders),
     });
   }
 
@@ -165,19 +198,21 @@ export function auditPage({ width, coarse, minTarget, minInputFont }) {
   const textTypes = new Set(['text', 'search', 'email', 'url', 'tel', 'password', 'number', 'date', 'datetime-local', 'month', 'week', 'time']);
   for (const el of document.querySelectorAll('input, select, textarea')) {
     if (el.localName === 'input' && !textTypes.has(el.type)) continue;
-    if (!visible(el)) continue;
+    if (!inScope(el) || !visible(el)) continue;
     checked.inputs++;
     const fs = parseFloat(getComputedStyle(el).fontSize);
     if (fs < minInputFont) add('inputs', 'fail', el, `font-size ${floor2(fs)}px < ${minInputFont}px`, { value: fs });
   }
 
   // ---------- 5. text contrast ----------
+  // Text in a layer paints over the page, so only media inside the layer can lie under it.
   const media = [...document.querySelectorAll('img, canvas, video')]
+    .filter(inScope)
     .map((m) => ({ m, r: m.getBoundingClientRect() }))
     .filter(({ r }) => r.width > 0 && r.height > 0);
   const seen = new Set();
-  const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let node = tw.nextNode(); node; node = tw.nextNode()) {
+  const texts = roots.map((r) => document.createTreeWalker(r, NodeFilter.SHOW_TEXT));
+  for (const tw of texts) for (let node = tw.nextNode(); node; node = tw.nextNode()) {
     const el = node.parentElement;
     if (!el || seen.has(el) || !/\S/.test(node.nodeValue)) continue;
     if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|OPTION|OPTGROUP|TITLE)$/.test(el.tagName)) continue;
@@ -222,7 +257,7 @@ export function auditPage({ width, coarse, minTarget, minInputFont }) {
   const noBorderTypes = new Set(['hidden', 'button', 'submit', 'reset', 'image', 'color']);
   for (const el of document.querySelectorAll('input, select, textarea, [role="checkbox"], [role="switch"], [role="combobox"]')) {
     if (el.localName === 'input' && noBorderTypes.has(el.type)) continue;
-    if (!visible(el) || isDisabled(el)) continue;
+    if (!inScope(el) || !visible(el) || isDisabled(el)) continue;
     const cs = getComputedStyle(el);
     const sides = ['Top', 'Right', 'Bottom', 'Left']
       .map((s) => ({ w: parseFloat(cs['border' + s + 'Width']), st: cs['border' + s + 'Style'], c: parse(cs['border' + s + 'Color']) }))
@@ -272,7 +307,7 @@ export function auditPage({ width, coarse, minTarget, minInputFont }) {
   for (const el of document.querySelectorAll(targetSel)) {
     // [tabindex="-1"] alone (e.g. <main>) is programmatic focus, not a control; a real control keeps its role either way.
     if (!el.matches(nativeSel) && parseInt(el.getAttribute('tabindex'), 10) < 0) continue;
-    if (isDisabled(el) || inert(el) || !visible(el)) continue;
+    if (!inScope(el) || isDisabled(el) || inert(el) || !visible(el)) continue;
     const exempt = el.getAttribute('data-audit-exempt');
     if (exempt) {
       add('targets', 'exempt', el, `exempt: ${exempt}`);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import { Button, Dialog, Toaster, toast } from '#lib';
 
 	// Confirmations. A failure that has no place on screen may toast too.
@@ -51,7 +52,9 @@
 				Mount <code>&lt;Toaster /&gt;</code> once, in the app’s root component. Then call
 				<code class="nowrap">toast(message, options)</code> from any code. Both come from the package root. The toast
 				lives in module state, so it works in apps without SvelteKit. A second Toaster renders nothing while the first
-				one is mounted. This page mounts its own.
+				one is mounted. This page mounts its own. Without a Toaster the message has nowhere to show: the first
+				<code>toast()</code> call logs one console warning per page load, naming the fix, and the returned handle
+				still works.
 			</li>
 			<li>
 				Toasts confirm what the user just did: Copied, Saved, Moved to archive. Errors stay inline, next to where
@@ -233,6 +236,16 @@
 				mouse.
 			</li>
 		</ul>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'label', value: 'Notifications', shows: 'The name of the toast region, for landmark navigation. Toaster prop.' },
+				{ prop: 'closeLabel', value: 'Dismiss', shows: 'The accessible name of the toast’s close button. Toaster prop.' }
+			]}
+		/>
 	</section>
 </main>
 

@@ -232,7 +232,7 @@
 			</thead>
 			<tbody class="hp-mono hp-dense">
 				{#each bandRows as r, i (r.id)}
-					<tr class:is-selected={i === 0} aria-current={i === 0 ? 'true' : undefined}>
+					<tr class:hp-selected={i === 0} aria-current={i === 0 ? 'true' : undefined}>
 						<td>{r.id}</td>
 						<td>{r.name}</td>
 						<td>{r.updated}</td>
@@ -317,10 +317,34 @@
 			</div>
 			<ul class="state-rows" aria-label="Row states">
 				<li>Row at rest</li>
-				<li class="is-selected" aria-current="true">Selected row</li>
+				<li class="hp-selected" aria-current="true">Selected row</li>
 				<li class="show-focus-inset">Focused row</li>
 			</ul>
 		</div>
+	</section>
+
+	<section aria-labelledby="selection">
+		<h2 id="selection" class="hp-section-title">The selected class</h2>
+		<p class="lede">
+			Table, Tabs, Select and Combobox draw the selection themselves. For a list of your own, such as a
+			picker or a list of sessions, add <code>hp-selected</code> to the selected row and mark it for
+			assistive technology as well. The class draws the 3px titanium edge on the inline start (the
+			right under <code>dir="rtl"</code> on the row or an ancestor) and the
+			<code>--surface-selected</code> tint. It has no specificity, so any rule of yours wins. The edge
+			is a <code>box-shadow</code>: a row that draws its own divider that way sets both in one
+			declaration.
+		</p>
+		<p class="snippet"><code>{'<li class="hp-selected" aria-current="true">'}</code></p>
+		<ul class="pick-rows" aria-label="Example list">
+			<li>Draft invoice</li>
+			<li class="hp-selected" aria-current="true">Sent invoice</li>
+			<li>Archived invoice</li>
+		</ul>
+		<ul class="uses">
+			<li>The current item in a list beside its detail.</li>
+			<li>The chosen option in a picker with rows of your own.</li>
+			<li>The open session in a sidebar list.</li>
+		</ul>
 	</section>
 
 	<section aria-labelledby="controls">
@@ -333,7 +357,7 @@
 		</p>
 		<ul class="heights">
 			{#each heights as h (h.px)}
-				<li class:is-selected={tokens['--control-height'] === `${h.px}px`}>
+				<li class:hp-selected={tokens['--control-height'] === `${h.px}px`}>
 					<span class="height-box" style:height="{h.px}px">
 						<span class="hp-mono hp-dense">{h.px}px</span>
 					</span>
@@ -392,11 +416,6 @@
 	}
 	.value {
 		color: var(--muted);
-	}
-
-	.is-selected {
-		background: var(--surface-selected);
-		box-shadow: inset 3px 0 0 var(--accent);
 	}
 
 	/* ---- Colour --------------------------------------------------------- */
@@ -651,6 +670,27 @@
 		outline-offset: -2px;
 	}
 
+	.pick-rows,
+	.uses {
+		margin: var(--space-4) 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.pick-rows {
+		max-width: 480px;
+		margin-inline: calc(-1 * var(--bleed));
+	}
+	.pick-rows li {
+		display: flex;
+		align-items: center;
+		min-height: var(--control-height);
+		padding: 0 var(--bleed);
+	}
+	.uses {
+		max-width: var(--measure);
+		color: var(--muted);
+	}
+
 	/* ---- Controls and density ------------------------------------------ */
 
 	.heights {
@@ -676,7 +716,7 @@
 	.when {
 		color: var(--muted);
 	}
-	.heights li.is-selected .when {
+	.heights li.hp-selected .when {
 		color: var(--text);
 	}
 

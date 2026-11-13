@@ -6,11 +6,23 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-// Never public: agent memory, session handoffs, overnight runs, and the reference reel's frames
-// (third-party stills; the text measurements in docs/ stay).
-const PRIVATE = ['memory', 'handoffs', 'overnight', 'docs/reference'];
-// Personal identifiers that must not reach a public commit.
-const IDENTIFIERS = String.raw`git\.local|[a-z]:[/\\]users[/\\]|localappdata|@gmail\.com`;
+// Never public: agent memory, session handoffs, overnight runs, the reference reel's frames
+// (third-party stills; the text measurements in docs/ stay) and audit reports.
+const PRIVATE = ['memory', 'handoffs', 'overnight', 'docs/reference', 'docs/audit-*.md'];
+// Personal identifiers that must not reach a public commit: the private Git host, local paths,
+// the personal mail address and private network addresses.
+const IDENTIFIERS = [
+  String.raw`git\.local`,
+  String.raw`[a-z]:[/\\]users[/\\]`,
+  String.raw`[a-z]:[/\\]dev[/\\]`,
+  'localappdata',
+  String.raw`@gmail\.com`,
+  String.raw`(^|[^0-9.])10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}`,
+  String.raw`(^|[^0-9.])192\.168\.[0-9]{1,3}\.[0-9]{1,3}`,
+].join('|');
+// Public commits carry GitHub's noreply address, never the mail address in the local git config.
+// Tag a release with the same identity (AGENTS.md, Release).
+const IDENTITY = { name: 'MYSTRAVIL', email: '58272034+MYSTRAVIL@users.noreply.github.com' };
 
 const message = process.argv[2];
 if (!message) {
@@ -51,7 +63,12 @@ if (hits.status === 0) {
 }
 if (hits.status !== 1) throw new Error(`git grep failed: ${hits.stderr}`);
 
-const commit = git(['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', message]);
+const commit = git(['commit-tree', tree, ...(parent ? ['-p', parent] : []), '-m', message], {
+  GIT_AUTHOR_NAME: IDENTITY.name,
+  GIT_AUTHOR_EMAIL: IDENTITY.email,
+  GIT_COMMITTER_NAME: IDENTITY.name,
+  GIT_COMMITTER_EMAIL: IDENTITY.email,
+});
 git(['update-ref', 'refs/heads/public', commit, ...(parent ? [parent] : [])]);
 const files = git(['ls-tree', '-r', '--name-only', commit]).split('\n').length;
 const stat = parent ? git(['diff', '--shortstat', parent, commit]) : 'first snapshot';

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import TextField from '#lib/components/TextField.svelte';
 
@@ -298,6 +299,15 @@
 				hint="Set when the workspace was created."
 			/>
 		</div>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'clearLabel', value: 'Clear', shows: 'The accessible name of the clear button that a search field shows while it holds text.' }
+			]}
+		/>
 	</section>
 </main>
 

@@ -4,7 +4,7 @@ A Vite + Svelte 5 app without SvelteKit. It installs the packed `@mystravil/hard
 
 The repo's own gates read the `.svelte` sources. This app sees what an npm user gets: the files in `dist/`, the shipped `.d.ts` types, and the dependencies the package declares.
 
-Some drivers also assert behaviour that only the shipped package can prove: a closed Menu, Popover, Select, Combobox or Tooltip adds nothing to `<body>`, its trigger keeps its ARIA while closed, and its first open plays the entrance and points the trigger at the open part (`menus`, `popovers`, `selects`, `tooltips`; Select's typeahead on the closed trigger and typing in a closed Combobox work before the first open), a search TextField hides the browser's cancel button and its own clear button works by pointer and keys (`search`), and Button renders the right element with the right link semantics (`buttons`). A failed assertion is a failed step.
+Some drivers also assert behaviour that only the shipped package can prove: a closed Menu, Popover, Select, Combobox, Tooltip, Dialog, ImageViewer or AppShell drawer adds nothing to `<body>`, its trigger keeps its ARIA while closed, and its first open plays the entrance and points the trigger at the open part (`menus`, `popovers`, `selects`, `tooltips`, `dialogs`, `viewer`, `shell`; Select's typeahead on the closed trigger and typing in a closed Combobox work before the first open; a Dialog or ImageViewer mounted with `open` set opens), Dialog's `initialFocus` places focus and an app's `onOpenAutoFocus` that calls `preventDefault()` overrides it (`dialogs`), a search TextField hides the browser's cancel button and its own clear button works by pointer and keys (`search`), Button renders the right element with the right link semantics and the danger tone reaches the element and its ink (`buttons`), an `error` on Select, NativeSelect, Checkbox and Switch sets `aria-invalid`, leads `aria-describedby` and reddens the boundary, while NativeSelect's `ref` is its `<select>` (`forms`), and `src/typed-api.ts` makes svelte-check prove that the shipped types require an accessible name on Progress, Meter and icon Buttons and refuse a tone on a primary Button. A failed assertion is a failed step.
 
 The policy (`vite.config.js`, `preview.headers`) is omp-remote's production policy:
 
@@ -33,7 +33,7 @@ node run.mjs dialogs menus    only these scenes
 node run.mjs _control         negative control: must report violations
 ```
 
-`run.mjs` starts `vite preview` on port 4180 unless something already answers there.
+`run.mjs` starts `vite preview` on port 4180, or on `CONSUMER_PORT` when it is set, unless something already answers there. Two checkouts that run the test at the same time need different ports, or one tests the other's build. Pick a port that `fetch` and browsers allow: the Fetch standard blocks some, such as 4190, and then the run stops with "vite preview did not start".
 
 - Exit 0: no violations, and every step reached its state.
 - Exit 1: at least one violation or policy console message (listed as JSON lines).
@@ -58,7 +58,7 @@ A run takes about four minutes. `node run.mjs _control` proves the detector work
 
 ## Files
 
-- `vite.config.js`: the policy header and the preview port 4180.
+- `vite.config.js`: the policy header and the preview port (4180, or `CONSUMER_PORT`).
 - `index.html`: no inline script or style. `src/main.ts` sets the theme from `?theme=`.
 - `src/main.ts`: imports the package CSS and mounts `App`.
 - `src/App.svelte`: picks a scene by `location.hash` (`#dialogs`).

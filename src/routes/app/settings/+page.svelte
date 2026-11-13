@@ -192,10 +192,7 @@
 
 		<section aria-labelledby="appearance">
 			<h2 id="appearance" class="hp-section-title">Appearance</h2>
-			<div class="hinted">
-				<ThemeSelect />
-				<p class="hp-caption note">Applies at once and stays on this device. System follows your device.</p>
-			</div>
+			<ThemeSelect hint="Applies at once and stays on this device. System follows your device." />
 		</section>
 
 		<section aria-labelledby="notifications">
@@ -284,15 +281,6 @@
 	.fields {
 		display: grid;
 		gap: var(--space-6);
-	}
-
-	/* A control with its note right under it, as a field's hint sits. */
-	.hinted {
-		display: grid;
-		gap: var(--space-2);
-	}
-	.note {
-		color: var(--muted);
 	}
 
 	.none {

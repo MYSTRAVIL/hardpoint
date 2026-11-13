@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import Menu from '#lib/components/Menu.svelte';
 	import MenuCheckboxItem from '#lib/components/MenuCheckboxItem.svelte';
@@ -76,7 +77,7 @@
 				first open and stays mounted after it.
 			</li>
 			<li>
-				<code>MenuItem</code> runs <code>onSelect</code> and closes the menu; <code>variant="danger"</code> marks
+				<code>MenuItem</code> runs <code>onSelect</code> and closes the menu; <code>tone="danger"</code> marks
 				an action that deletes or removes something. <code>MenuGroup</code> takes a <code>label</code> for a caps
 				heading, and <code>MenuSeparator</code> divides groups.
 			</li>
@@ -112,7 +113,7 @@
 				<MenuItem onSelect={() => (lastAction = 'duplicate')}>Duplicate</MenuItem>
 				<MenuItem onSelect={() => (lastAction = 'move to folder')}>Move to folder</MenuItem>
 				<MenuSeparator />
-				<MenuItem variant="danger" onSelect={() => (lastAction = 'delete')}>Delete</MenuItem>
+				<MenuItem tone="danger" onSelect={() => (lastAction = 'delete')}>Delete</MenuItem>
 			</Menu>
 			<p id="menu-last-action" class="hp-caption readout" aria-live="polite">
 				{#if lastAction}last action: <code>{lastAction}</code>{:else}No action yet.{/if}
@@ -145,7 +146,7 @@
 				<MenuItem onSelect={() => (fileAction = 'download')}>Download</MenuItem>
 				<MenuItem onSelect={() => (fileAction = 'copy link')}>Copy link</MenuItem>
 				<MenuSeparator />
-				<MenuItem variant="danger" onSelect={() => (fileAction = 'remove from project')}>Remove from project</MenuItem>
+				<MenuItem tone="danger" onSelect={() => (fileAction = 'remove from project')}>Remove from project</MenuItem>
 			</Menu>
 		</div>
 		<p id="menu-file-action" class="hp-caption readout" aria-live="polite">
@@ -220,6 +221,15 @@
 				</li>
 			{/each}
 		</ul>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'closeLabel', value: 'Close', shows: 'The accessible name of the sheet’s close button, below 600px.' }
+			]}
+		/>
 	</section>
 </main>
 

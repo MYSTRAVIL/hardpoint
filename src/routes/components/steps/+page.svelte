@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Steps, { type StepsItem } from '#lib/components/Steps.svelte';
 
 	const setup: StepsItem[] = [
@@ -96,6 +97,15 @@
 			<code>rowFrom="large"</code>: stacked up to 1199px, a row from 1200px.
 		</p>
 		<Steps aria-label="Project settings" steps={release} current={3} rowFrom="large" />
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'doneLabel', value: 'done', shows: 'Read by screen readers after the label of each finished step. Not drawn.' }
+			]}
+		/>
 	</section>
 </main>
 

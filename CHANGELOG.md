@@ -2,6 +2,26 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
+## 0.5.0 (2026-11-13)
+
+Breaking: three props are renamed, Checkbox, Switch, Progress, Meter and icon Buttons need an accessible name in their types, and DOM tests wait one tick after a Dialog's first open, so a consumer must adapt (the **Changed (breaking)** list below).
+
+- **Added**:
+  - `Select` and `NativeSelect` take `hint` and `error` with TextField's field messages (`aria-describedby` error, hint, then the app's own; `aria-invalid` on the control; a red well boundary). `Checkbox` and `Switch` take `error`: the message under the row, `aria-invalid` on the button and a red box or track edge. `NativeSelect` takes a bindable `ref` (the `<select>`), so an app can focus it as the first invalid field. `Select` takes `closeLabel` (default `Close`) for its compact sheet's close button.
+  - `Button` `tone="danger"` for a destructive action, on `secondary` (a `--danger` border and label) and `tertiary` (a `--danger` label and hover underline). Hover, press and focus look as before, a disabled danger button looks like any disabled button, and the element carries `data-tone="danger"`. `variant="primary"` takes no tone (a type error). New type `ButtonTone`.
+  - `Combobox` `searchPlaceholder` (default `Search`): the placeholder of the compact sheet's search field when the app sets no `placeholder`, so the field reads as a filter.
+  - `.hp-selected` in `base.css`: the selection rule (the `--surface-selected` tint and a 3 px `--accent` edge on the inline start, on the right under `dir="rtl"`) for an app's own rows, at zero specificity. Pair it with `aria-current` or `aria-selected`.
+  - `Dialog` `initialFocus`: an element, or a function that returns one, where focus starts when the dialog opens (the close button without it). An app's own `onOpenAutoFocus` runs first and wins when it calls `preventDefault()`.
+- **Changed** (breaking):
+  - `NativeSelect`: the `options` prop is now `items`, and the type `NativeSelectOption` is now `NativeSelectItem`.
+  - `MenuItem` `variant="danger"` is now `tone="danger"`; the attribute `data-variant` is now `data-tone`, and the type `MenuItemVariant` is now `MenuItemTone`.
+  - `EmptyState` and `ErrorState`: the `action` snippet is now `actions`. EmptyState's wrapper class `hp-empty-state-action` is now `hp-empty-state-actions`.
+  - Types: `Progress`, `Meter`, `Checkbox` and `Switch` need exactly one of `label`, `aria-label` or `aria-labelledby`, and an icon `Button` (`icon`) needs `aria-label` or `aria-labelledby`. Code without an accessible name no longer type-checks.
+  - `Dialog`, `ImageViewer` and the `AppShell` drawer mount Bits UI's portal and content on the first open, as `Menu`, `Popover`, `Select`, `Combobox` and `Tooltip` do, so a closed one adds nothing to `<body>` (three closed Dialogs added 93 nodes in 0.4.0, three ImageViewers 75, a closed drawer 29). The trigger's ARIA is the same while closed, and the first open plays the entrance. A DOM test (happy-dom) now awaits one `tick()` before `flushSync()` after the first open and after mounting a Dialog or ImageViewer with `open` set; later opens need no wait. An app that mounts each Dialog only from its first showing can drop that gate.
+- **Changed**:
+  - `Combobox` announces "No matches" from one visually hidden `role="status"` region that mounts with the field, so the first key typed into a closed combobox that matches nothing is announced too. The visible empty line looks as before and is `aria-hidden`.
+  - `toast()` without a mounted `<Toaster />` logs one console warning per page that names the fix. The message is still not shown, and the returned handle works as before.
+
 ## 0.4.0 (2026-11-12)
 
 - **Changed**: `Popover`, `Select`, `Combobox` and `Tooltip` mount Bits UI's portal and content on the first open instead of with the trigger, as `Menu` does since 0.3.0, so a closed one adds nothing to `<body>` (Bits UI's portal added about 35 nodes each). The trigger's ARIA is the same while closed: `aria-haspopup` (Popover `dialog`, Select `listbox`), `role="combobox"` on Select and Combobox, `aria-expanded`, and `aria-controls` only while open. Select and Combobox show the chosen label in the closed field, and a Tooltip still describes its trigger only while open. Select's typeahead on the closed trigger and the first key typed in a closed Combobox work before the first open. The first open still plays the entrance: the content mounts closed and opens one tick later. A DOM test, for example in happy-dom, now awaits one `tick()` before `flushSync()` after the first open; later opens need none.

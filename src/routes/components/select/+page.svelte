@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Button from '#lib/components/Button.svelte';
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Select, { type SelectItem } from '#lib/components/Select.svelte';
 
 	const languages: SelectItem[] = [
@@ -144,6 +145,27 @@
 	let paperSize = $state('a4');
 	let reviewer = $state('');
 
+	// The validated form: the page validates, the select shows the error it
+	// is given. Validate on submit; once a select shows an error, choosing
+	// a value clears it.
+	let owner = $state('');
+	let ownerError = $state<string>();
+	let ownerRef = $state<HTMLElement | null>(null);
+	let assigned = $state('');
+	$effect(() => {
+		if (owner) ownerError = undefined;
+	});
+	function checkOwner() {
+		ownerError = owner ? undefined : 'Choose who owns the task.';
+	}
+	function assign(e: SubmitEvent) {
+		e.preventDefault();
+		checkOwner();
+		assigned = '';
+		if (ownerError) ownerRef?.focus();
+		else assigned = `Task assigned to ${people.find((p) => p.value === owner)?.label}.`;
+	}
+
 	let submitted = $state('');
 	function submit(e: SubmitEvent & { currentTarget: HTMLFormElement }) {
 		e.preventDefault();
@@ -180,6 +202,16 @@
 				placeholder never stands in for it.
 			</li>
 			<li>
+				<strong>Hint and error.</strong> <code>hint</code> shows guidance under the trigger in the muted
+				ink. <code>error</code> shows a message under it with an icon, sets
+				<code>aria-invalid</code> on the trigger and turns its boundary red. Both are linked by
+				<code>aria-describedby</code>, the error first, then the hint, then your own. Say how to fix the
+				problem. An error that appears after the first render fades in with the red boundary over
+				<code>--dur-message</code> (120ms); one that clears goes at once. They work the same with the
+				list and with the sheet, and with <code>labelBeside</code> they stay under the trigger. The app
+				validates; on submit it focuses the first field with an error through <code>bind:ref</code>.
+			</li>
+			<li>
 				The chosen option has a 3px titanium edge and the selected tint. The option under the pointer or
 				the keys gets the hover tint; the one moved by keys also draws the focus contour, because focus
 				stays on the trigger.
@@ -206,6 +238,10 @@
 			<li>
 				<code>name</code> submits the value with a form. Extra attributes, event handlers and
 				<code>ref</code> go to the trigger button; <code>class</code> goes to the field.
+			</li>
+			<li>
+				<code>closeLabel</code> names the sheet’s close button on compact widths. It defaults to
+				<code>Close</code>; pass the app’s own words to translate it.
 			</li>
 		</ul>
 	</section>
@@ -317,6 +353,66 @@
 		</div>
 	</section>
 
+	<section aria-labelledby="messages">
+		<h2 id="messages" class="hp-section-title">Hint and error</h2>
+		<p class="lede">
+			The hint sits under the trigger in the muted ink. The error adds an icon and a message, and the
+			boundary turns red. The hint stays. A disabled select keeps its quiet boundary.
+		</p>
+		<div class="grid">
+			<div class="cell">
+				<Select label="Frequency" items={frequencies} bind:value={frequency} hint="How often you hear from us." />
+			</div>
+			<div class="cell">
+				<Select
+					label="Assignee"
+					items={people}
+					placeholder="Choose a person"
+					hint="They get the task in their inbox."
+					error="Choose a person to assign the task to."
+				/>
+			</div>
+			<div class="cell">
+				<Select
+					label="Format"
+					items={formats}
+					placeholder="Choose a format"
+					error="Choose a format."
+					disabled
+				/>
+			</div>
+			<div class="cell">
+				<Select
+					label="Language"
+					items={languages}
+					placeholder="Choose a language"
+					labelBeside
+					hint="Sets the interface language."
+					error="Choose a language."
+				/>
+			</div>
+		</div>
+		<p class="lede again">
+			Send the form without choosing: the error appears and the select takes focus. Choose a person and
+			it clears.
+		</p>
+		<form class="form" novalidate onsubmit={assign}>
+			<Select
+				label="Owner"
+				items={people}
+				placeholder="Choose an owner"
+				hint="The person who answers for the task."
+				error={ownerError}
+				bind:value={owner}
+				bind:ref={ownerRef}
+			/>
+			<div class="actions">
+				<Button variant="primary" type="submit">Assign task</Button>
+			</div>
+			<p class="hp-caption readout" role="status">{assigned}</p>
+		</form>
+	</section>
+
 	<section aria-labelledby="form">
 		<h2 id="form" class="hp-section-title">In a form</h2>
 		<p class="lede">Each field’s <code>name</code> submits its value through a hidden input.</p>
@@ -330,6 +426,15 @@
 				{#if submitted}submitted: <code>{submitted}</code>{:else}Nothing submitted yet.{/if}
 			</p>
 		</form>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'closeLabel', value: 'Close', shows: 'The accessible name of the sheet’s close button, below 600px.' }
+			]}
+		/>
 	</section>
 </main>
 
@@ -350,6 +455,9 @@
 	code,
 	kbd {
 		font-size: 0.875em;
+	}
+	.lede.again {
+		margin-top: var(--space-8);
 	}
 
 	.notes {

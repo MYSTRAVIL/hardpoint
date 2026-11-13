@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import Combobox, { type ComboboxItem } from '#lib/components/Combobox.svelte';
 
@@ -169,6 +170,16 @@
 			<li>
 				<code>label</code> is required: it is the caps field label and, on phones, the sheet’s title. A
 				placeholder never stands in for it; it fills the empty field and the sheet’s search input.
+			</li>
+			<li>
+				On phones the sheet opens with an empty search input, so it carries a placeholder: your
+				<code>placeholder</code> when you set one, otherwise <code>searchPlaceholder</code>, <code>Search</code>
+				by default. Set it in the app’s language. The input stays 16px.
+			</li>
+			<li>
+				A screen reader hears <code>emptyText</code> from a status region that exists as long as the field does. The
+				text appears in it only while the list is open and shows no option. The visible line is hidden from screen
+				readers, so it is not read twice.
 			</li>
 			<li>
 				Typing filters the list. By default an option matches when its label or its group contains the
@@ -373,6 +384,17 @@
 				{#if submitted}submitted: <code>{submitted}</code>{:else}Nothing submitted yet.{/if}
 			</p>
 		</form>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'emptyText', value: 'No matches', shows: 'In the list, when no option matches the typed text.' },
+				{ prop: 'searchPlaceholder', value: 'Search', shows: 'The placeholder of the search field in the sheet, below 600px.' },
+				{ prop: 'closeLabel', value: 'Close', shows: 'The accessible name of the sheet’s close button, below 600px.' }
+			]}
+		/>
 	</section>
 </main>
 

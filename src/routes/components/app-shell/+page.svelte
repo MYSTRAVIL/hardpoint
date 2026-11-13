@@ -1,4 +1,6 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
+	import PageLinks from '../../PageLinks.svelte';
 	import { page } from '$app/state';
 	import AppShell, {
 		type AppShellCompactNav,
@@ -97,7 +99,7 @@
 				label="Status"
 				labelBeside="expanded"
 				bind:value={status}
-				options={[
+				items={[
 					{ value: 'all', label: 'All' },
 					{ value: 'active', label: 'Active' },
 					{ value: 'done', label: 'Done' }
@@ -107,7 +109,7 @@
 				label="Owner"
 				labelBeside="expanded"
 				bind:value={owner}
-				options={[
+				items={[
 					{ value: 'anyone', label: 'Anyone' },
 					{ value: 'me', label: 'Me' },
 					{ value: 'team', label: 'My team' }
@@ -156,7 +158,7 @@
 			<NativeSelect
 				label="Destinations"
 				bind:value={count}
-				options={[
+				items={[
 					{ value: '3', label: 'Three' },
 					{ value: '4', label: 'Four' },
 					{ value: '5', label: 'Five' }
@@ -165,7 +167,7 @@
 			<NativeSelect
 				label="Page controls"
 				bind:value={controlsKind}
-				options={[
+				items={[
 					{ value: 'actions', label: 'Page actions' },
 					{ value: 'filters', label: 'Filters' },
 					{ value: 'none', label: 'None' }
@@ -174,7 +176,7 @@
 			<NativeSelect
 				label="Title"
 				bind:value={titleKind}
-				options={[
+				items={[
 					{ value: 'view', label: 'The view’s name' },
 					{ value: 'long', label: 'A long title' }
 				]}
@@ -182,7 +184,7 @@
 			<NativeSelect
 				label="Below 600px"
 				bind:value={compactNav}
-				options={[
+				items={[
 					{ value: 'bar', label: 'Bottom bar' },
 					{ value: 'drawer', label: 'Drawer' }
 				]}
@@ -190,7 +192,7 @@
 			<NativeSelect
 				label="From 900px"
 				bind:value={wideNav}
-				options={[
+				items={[
 					{ value: 'sidebar', label: 'Sidebar' },
 					{ value: 'rail', label: 'Rail' }
 				]}
@@ -240,8 +242,10 @@
 			<li>
 				<code>destinations</code> lists three to five <code>{'{ href, label, icon }'}</code>, the one
 				list every navigation form uses. They are plain links, so SvelteKit or any other router
-				handles them. Keep labels to about six letters: five destinations share 320px and the rail is
-				80px, and a label too long for its cell ends in an ellipsis. The <code>icon</code> snippet
+				handles them. An app that builds an <code>href</code> from untrusted data validates the URL
+				first, because a <code>javascript:</code> URL runs when someone follows it. Keep labels to about
+				six letters: five destinations share 320px and the rail is 80px, and a label too long for its
+				cell ends in an ellipsis. The <code>icon</code> snippet
 				draws an inline <code>&lt;svg&gt;</code> in <code>currentColor</code> with a
 				<code>viewBox</code> and no <code>width</code> or <code>height</code>; it fills a 20px square.
 			</li>
@@ -263,7 +267,8 @@
 				whether the drawer is open. The drawer keeps focus inside it while open and gives it back to
 				the menu button when it closes. When the window reaches 600px it closes by itself and focus
 				moves to the current destination in the rail or the sidebar, or to its first link when no
-				destination is current, since the menu button is gone.
+				destination is current, since the menu button is gone. A drawer that was never opened adds
+				nothing to the page but the menu button; it mounts on the first open and stays mounted after it.
 			</li>
 			<li>
 				The first <kbd>Tab</kbd> shows a skip link to <code>&lt;main&gt;</code>. Scroll padding keeps a
@@ -295,6 +300,20 @@
 			{/each}
 		</ul>
 	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'navLabel', value: 'Main', shows: 'The name of the navigation landmark, in the bar, the rail, the sidebar and the drawer.' },
+				{ prop: 'menuLabel', value: 'Menu', shows: 'The name of the menu button below 600px, and the caps title of the drawer.' },
+				{ prop: 'closeLabel', value: 'Close', shows: 'The name of the drawer’s close button.' },
+				{ prop: 'skipLabel', value: 'Skip to content', shows: 'The skip link, shown on keyboard focus.' }
+			]}
+		/>
+	</section>
+
+	<section><PageLinks pathname={page.url.pathname} /></section>
 </AppShell>
 
 <style>

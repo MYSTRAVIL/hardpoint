@@ -66,9 +66,10 @@
 				<code>tone</code>, say why in <code>valueText</code> or <code>detail</code>.
 			</li>
 			<li>
-				<strong>Label.</strong> <code>label</code> is a line above the bar, as written, never in caps.
-				It names the meter. Without it, name the meter with <code>aria-label</code> or
-				<code>aria-labelledby</code>, and show the value in the app’s own text.
+				<strong>Name.</strong> A meter needs an accessible name, and the types require exactly one of
+				<code>label</code>, <code>aria-label</code> and <code>aria-labelledby</code>. <code>label</code> is
+				a line above the bar, as written, never in caps. With <code>aria-label</code> or
+				<code>aria-labelledby</code>, show the value in the app’s own text.
 			</li>
 			<li>
 				<strong>Value in words.</strong> <code>valueText</code>, such as <code>32 of 50 GB</code>,

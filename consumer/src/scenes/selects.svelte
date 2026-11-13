@@ -30,7 +30,7 @@
 	<Select label="Language" items={langs} bind:value={lang} />
 	<Combobox label="Project" items={projects} bind:value={project} placeholder="Search" hint="Type to filter" />
 	<Combobox label="Other" items={projects} bind:value={other} emptyText="Nothing found" />
-	<NativeSelect label="Native" options={langs} value="en" />
+	<NativeSelect label="Native" items={langs} value="en" />
 	<Button onclick={() => (more = true)}>Mount closed fields</Button>
 	{#if more}
 		<Select label="Size" items={sizes} bind:value={size} />

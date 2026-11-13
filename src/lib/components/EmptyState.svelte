@@ -17,7 +17,7 @@
 		/** Why it is empty or what fills it, in the muted ink. */
 		description?: string;
 		/** The one clear next action: render a `Button` here. */
-		action?: Snippet;
+		actions?: Snippet;
 		titleAs?: EmptyStateTitleElement;
 		variant?: EmptyStateVariant;
 	};
@@ -27,7 +27,7 @@
 	let {
 		title,
 		description,
-		action,
+		actions,
 		titleAs = 'p',
 		variant = 'standard',
 		class: className,
@@ -51,8 +51,8 @@
 	{#if description}
 		<p class="hp-empty-state-description">{description}</p>
 	{/if}
-	{#if action}
-		<div class="hp-empty-state-action">{@render action()}</div>
+	{#if actions}
+		<div class="hp-empty-state-actions">{@render actions()}</div>
 	{/if}
 </div>
 
@@ -78,8 +78,8 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* The action is its own group: three times the gap inside the text. */
-	.hp-empty-state-action {
+	/* The actions are their own group: three times the gap inside the text. */
+	.hp-empty-state-actions {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);

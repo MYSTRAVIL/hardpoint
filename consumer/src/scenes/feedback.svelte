@@ -11,9 +11,11 @@
 	<Spinner label="Instant" class="instant-spinner" />
 	<Spinner label="Styled" style="--spinner-delay: 0ms" />
 	<EmptyState title="Nothing here" description="Add an item." variant="standard">
-		{#snippet action()}<Button>Add</Button>{/snippet}
+		{#snippet actions()}<Button>Add</Button>{/snippet}
 	</EmptyState>
 	<EmptyState title="Empty display" variant="display" />
-	<ErrorState title="Failed" description="Try again." onretry={() => {}} />
+	<ErrorState title="Failed" description="Try again." onretry={() => {}}>
+		{#snippet actions()}<Button>Sign in</Button>{/snippet}
+	</ErrorState>
 	<ErrorState title="Failed display" variant="display" onretry={() => {}} />
 </main>

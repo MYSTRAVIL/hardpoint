@@ -50,9 +50,9 @@ The design docs are in the source repository's `docs/` folder: `BRIEF.md` is the
 ```sh
 npm install
 npm run dev      # showcase app in src/routes
-npm run check    # svelte-check, and no SvelteKit imports in src/lib
+npm run check    # svelte-check; no SvelteKit imports, static style attributes or colour literals in src/lib
 npm run build    # showcase build, then svelte-package and publint into dist/
-npm run audit    # targets, overflow, 16px inputs, contrast on every route at four viewports, dark and light
+npm run audit    # targets, overflow, 16px inputs, contrast on every route and open overlay at four viewports, dark and light
 npm run shot -- /foundations shots/f.png --serve                       # screenshot with console-error check
 npm run shot -- /foundations shots/f-phone.png --w 390 --h 844 --touch --full --serve
 npm run consumer # pack the package and test it in consumer/, a Vite app without SvelteKit, under style-src 'self'

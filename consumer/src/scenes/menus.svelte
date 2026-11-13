@@ -22,7 +22,7 @@
 			<MenuRadioItem value="date">Date</MenuRadioItem>
 		</MenuRadioGroup>
 		<MenuSeparator />
-		<MenuItem variant="danger">Delete</MenuItem>
+		<MenuItem tone="danger">Delete</MenuItem>
 	</Menu>
 	<div class="row">
 		<Button onclick={() => (more = true)}>Mount three menus</Button>

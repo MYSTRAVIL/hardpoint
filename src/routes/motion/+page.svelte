@@ -396,7 +396,7 @@
 						<MenuItem>Duplicate</MenuItem>
 						<MenuItem>Move to folder</MenuItem>
 						<MenuSeparator />
-						<MenuItem variant="danger">Delete</MenuItem>
+						<MenuItem tone="danger">Delete</MenuItem>
 					</Menu>
 				</div>
 			</div>

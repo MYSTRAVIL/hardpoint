@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
 	import NativeSelect from '#lib/components/NativeSelect.svelte';
 	import Pagination from '#lib/components/Pagination.svelte';
@@ -130,8 +131,9 @@
 			<li>
 				<strong>Rows.</strong> <code>key</code> names the field that identifies a row.
 				<code>rowHref</code> makes each whole row one link; the link sits in the first cell and covers
-				the row, and its focus contour is drawn inside the row. <code>label</code> is the table’s
-				accessible name.
+				the row, and its focus contour is drawn inside the row. An app that builds these links from
+				untrusted data validates each URL first, because a <code>javascript:</code> URL runs when someone
+				follows it. <code>label</code> is the table’s accessible name.
 			</li>
 			<li>
 				<strong>Selection.</strong> <code>selected</code> takes a row key: a 3px titanium edge and the
@@ -291,7 +293,7 @@
 			<NativeSelect
 				label="Sync"
 				labelBeside
-				options={syncOptions}
+				items={syncOptions}
 				bind:value={sync}
 				onchange={() => (page = 1)}
 			/>
@@ -319,6 +321,15 @@
 				{/key}
 			</Motion>
 		</div>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'totalLabel', value: 'Total', shows: 'The caps label before the count in the footer row, when total is set.' }
+			]}
+		/>
 	</section>
 </main>
 

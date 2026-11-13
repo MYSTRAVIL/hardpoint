@@ -120,6 +120,30 @@ body {
 	outline-offset: -2px;
 }
 
+/* ---- Selection --------------------------------------------------------- */
+
+/* The selected row, item or tab: a 3px titanium edge on the inline start and
+   the --surface-selected tint, text unchanged. Drawn as Table draws its
+   selected row. Zero specificity, so a component's or an app's own rule wins.
+   The edge is a box-shadow: a list that also draws a divider this way sets
+   both in one declaration. Pair it with aria-current or aria-selected; the
+   class is only the look.
+
+   The edge flips to the right under dir="rtl" on the row or an ancestor, and
+   back under a nested dir="ltr". Attribute selectors, not :dir(): a build
+   that lowers :dir() to :lang() (Lightning CSS does, for older browsers)
+   would miss a dir attribute. */
+:where(.hp-selected) {
+	background: var(--surface-selected);
+	box-shadow: inset 3px 0 0 var(--accent);
+}
+:where([dir='rtl'] .hp-selected, .hp-selected[dir='rtl']) {
+	box-shadow: inset -3px 0 0 var(--accent);
+}
+:where([dir='rtl'] [dir='ltr'] .hp-selected, [dir='rtl'] .hp-selected[dir='ltr']) {
+	box-shadow: inset 3px 0 0 var(--accent);
+}
+
 /* ---- Type roles -------------------------------------------------------- */
 
 /* Tracked caps for short fixed labels: buttons, tabs, tags, column headers,

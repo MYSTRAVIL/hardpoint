@@ -1,4 +1,5 @@
 <script lang="ts">
+	import LabelsTable from '../../LabelsTable.svelte';
 	import { Button, ImageViewer, MediaFrame, MediaImage, Toaster, toast } from '#lib';
 	import { staircase } from '../../staircase';
 
@@ -157,6 +158,10 @@ $effect(() => {
 				or bind <code>open</code> from anywhere. The thumbnail’s <code>alt</code> names the button. Give the button no
 				padding, border or background, so the frame is the target; this page also brightens the frame’s line on hover
 				and press. Closing returns focus to the element that had it.
+			</li>
+			<li>
+				A viewer that was never opened mounts only its trigger, so a gallery can hold many. The viewer mounts on the
+				first open and stays mounted after it.
 			</li>
 			<li>
 				<code>downloadName</code> shows a Download button that saves <code>src</code> under that file name.
@@ -346,6 +351,17 @@ $effect(() => {
 				mouse.
 			</li>
 		</ul>
+	</section>
+
+	<section aria-labelledby="labels">
+		<h2 id="labels" class="hp-section-title">Labels</h2>
+		<LabelsTable
+			rows={[
+				{ prop: 'closeLabel', value: 'Close', shows: 'The accessible name of the close button.' },
+				{ prop: 'downloadLabel', value: 'Download', shows: 'The text of the Download button, when the viewer has one.' },
+				{ prop: 'loadingLabel', value: 'Loading image', shows: 'The name of the spinner while the image loads.' }
+			]}
+		/>
 	</section>
 </main>
 
