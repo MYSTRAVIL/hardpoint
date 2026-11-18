@@ -17,6 +17,8 @@ export {
 	type Column,
 	type TableBreakpoint,
 	type TableMark,
+	type TableSort,
+	type TableSortDirection,
 	type TableStack,
 	type TableVariant
 } from './components/Table.svelte';
@@ -24,6 +26,7 @@ export { default as AppShell, type AppShellCompactNav, type AppShellDestination,
 export { default as ListDetail, type ListDetailBreakpoint, type ListDetailProps, type ListDetailSnippetProps } from './components/ListDetail.svelte';
 export { default as Dialog, type DialogActionsSnippetProps, type DialogProps, type DialogTriggerSnippetProps } from './components/Dialog.svelte';
 export { default as Tag, type TagElement, type TagProps } from './components/Tag.svelte';
+export { default as Chip, type ChipCategory, type ChipProps } from './components/Chip.svelte';
 export { default as KeyValueList, type KeyValueItem, type KeyValueListProps } from './components/KeyValueList.svelte';
 export { default as Timeline, type TimelineEvent, type TimelineProps, type TimelineTone } from './components/Timeline.svelte';
 export { default as MediaFrame, type MediaFrameProps } from './components/MediaFrame.svelte';
@@ -31,10 +34,13 @@ export { default as MediaImage, type MediaImageProps } from './components/MediaI
 export { default as ImageViewer, type ImageViewerProps, type ImageViewerTriggerSnippetProps } from './components/ImageViewer.svelte';
 export { default as TextField, type TextFieldBreakpoint, type TextFieldProps, type TextFieldType } from './components/TextField.svelte';
 export { default as TextArea, type TextAreaProps } from './components/TextArea.svelte';
+export { default as ChipField, type ChipFieldProps } from './components/ChipField.svelte';
 export { default as Tabs, type TabsItem, type TabsProps } from './components/Tabs.svelte';
+export { default as TabNav, type TabNavItem, type TabNavProps } from './components/TabNav.svelte';
 export { default as Checkbox, type CheckboxProps } from './components/Checkbox.svelte';
 export { default as CheckboxGroup, type CheckboxGroupItem, type CheckboxGroupProps } from './components/CheckboxGroup.svelte';
 export { default as RadioGroup, type RadioGroupItem, type RadioGroupProps } from './components/RadioGroup.svelte';
+export { default as Slider, type SliderProps } from './components/Slider.svelte';
 export { default as Switch, type SwitchProps } from './components/Switch.svelte';
 export { default as Stat, type StatProps, type StatTone, type StatVariant } from './components/Stat.svelte';
 export { default as Steps, type StepsBreakpoint, type StepsItem, type StepsProps, type StepsState } from './components/Steps.svelte';
@@ -55,8 +61,13 @@ export { default as MenuRadioItem, type MenuRadioItemProps } from './components/
 export { default as MenuGroup, type MenuGroupProps } from './components/MenuGroup.svelte';
 export { default as MenuSeparator, type MenuSeparatorProps } from './components/MenuSeparator.svelte';
 export { default as Combobox, type ComboboxFilter, type ComboboxItem, type ComboboxItemSnippetProps, type ComboboxLabelBeside, type ComboboxProps } from './components/Combobox.svelte';
+export { default as MultiSelect, type MultiSelectItem, type MultiSelectLabelBeside, type MultiSelectProps } from './components/MultiSelect.svelte';
 export { default as Tooltip, type TooltipProps, type TooltipTriggerSnippetProps } from './components/Tooltip.svelte';
 export { default as TooltipGroup, type TooltipGroupProps } from './components/TooltipGroup.svelte';
 export { default as Disclosure, type DisclosureProps, type DisclosureTitleElement } from './components/Disclosure.svelte';
 export { default as Toaster, type ToasterProps } from './components/Toaster.svelte';
 export { toast, type ToastAction, type ToastHandle, type ToastOptions } from './components/toast.svelte.js';
+export { default as Section, type SectionProps, type SectionTitleElement } from './components/Section.svelte';
+export { default as Status, type StatusProps, type StatusTone } from './components/Status.svelte';
+export { default as BarChart, type BarChartColor, type BarChartItem, type BarChartProps, type BarChartSeries, type BarChartTone } from './components/BarChart.svelte';
+export { default as Sparkline, type SparklineColor, type SparklineProps, type SparklineTone } from './components/Sparkline.svelte';

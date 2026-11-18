@@ -81,8 +81,9 @@ export function installMotionRecorder() {
       target: target ? sel(target) + (effect.pseudoElement || '') : null,
       // Floating content (menus, popovers, select lists, tooltips) is positioned by Bits UI, which marks it.
       floating: !!(target && target.closest('[data-side], [data-bits-floating-content-wrapper]')),
-      // The content of a Disclosure: it fades in over --dur-expand and closes with a cut.
-      disclosure: !!(target && target.closest('.hp-disclosure-content')),
+      // The content of a Disclosure or of a Table row's detail: it fades in over --dur-expand and closes
+      // with a cut.
+      disclosure: !!(target && target.closest('.hp-disclosure-content, .hp-table-detail')),
       duration: typeof timing.duration === 'number' ? timing.duration : 0,
       delay: timing.delay || 0,
       iterations: timing.iterations,
@@ -166,7 +167,8 @@ export function installMotionRecorder() {
         if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden' || el.closest('[inert]')) return [];
         if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true') return [];
         const tooltip = el.hasAttribute('data-tooltip-trigger') && !el.hasAttribute('aria-haspopup') && !el.hasAttribute('aria-expanded');
-        return [{ id, selector: sel(el), text: label(el), tooltip, disclosure: el.classList.contains('hp-disclosure-trigger') }];
+        const disclosure = el.matches('.hp-disclosure-trigger, .hp-table-expand');
+        return [{ id, selector: sel(el), text: label(el), tooltip, disclosure }];
       });
     },
     // The trigger's state now: 'open', 'closed', or 'gone' if the page no longer has it.

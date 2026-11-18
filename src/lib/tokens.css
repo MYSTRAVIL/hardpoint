@@ -48,6 +48,17 @@
 	--warn: #f2c14e; /* waiting, blocked, needs you */
 	--ok: #35c46b; /* done, success, online */
 
+	/* Categories (2026-11-18): data categories only (chart series, graph
+	   nodes, legends, a tag's category edge), never controls or text, and
+	   always with a label or a legend. Five hues between green and red,
+	   clear of the three status hues; at least 3:1 on --canvas, and every
+	   pair stays apart under protan, deutan and tritan simulation. */
+	--category-1: #4ec2c2; /* teal, 9.8:1 */
+	--category-2: #98d6fa; /* sky, 13.3:1 */
+	--category-3: #6588f5; /* blue, 6.4:1 */
+	--category-4: #c09cfd; /* violet, 9.4:1 */
+	--category-5: #b965a8; /* magenta, 5.5:1 */
+
 	/* Glyphs drawn as backgrounds and masks. The chevron is a mask, painted
 	   in --muted. */
 	--select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23AAA69F' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
@@ -147,6 +158,11 @@
 	   each entering in 150ms, so the sequence ends by 300ms. */
 	--dur-enter: 150ms;
 	--stagger-step: 30ms;
+	/* One cycle of a live Status's pulse (Status): opacity 1 to 0.4 and back,
+	   0.42 flashes a second where WCAG 2.3.1 allows 3. The user allowed a
+	   slow pulse on 2026-11-18. Opacity only. It holds still under reduced
+	   motion and when the app sets <Motion paused>. */
+	--dur-pulse: 2400ms;
 	/* Content replacing skeleton blocks (motion rule 2): LoadRegion
 	   crossfades from the blocks to the content over this time when the
 	   blocks were on screen. The user chose the fade over a cut on /motion
@@ -218,6 +234,11 @@
 	--danger: #c4211b; /* 5.4:1 on --canvas, 4.7:1 on --surface-raised */
 	--warn: #8a5c00; /* 5.3:1, 4.6:1 */
 	--ok: #18763f; /* 5.2:1, 4.5:1 */
+	--category-1: #139189; /* 3.5:1 on --canvas, 3.1:1 on --surface-selected */
+	--category-2: #28738a; /* 4.9:1 */
+	--category-3: #1d43b1; /* 7.7:1 */
+	--category-4: #8665db; /* 3.9:1 */
+	--category-5: #87126c; /* 8.3:1 */
 	--select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23625D55' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
 	--status-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3 3h14v14H3zM10 9v5M10 6v1' fill='none' stroke='%231C1A17' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
 }
@@ -241,6 +262,11 @@
 		--danger: #c4211b;
 		--warn: #8a5c00;
 		--ok: #18763f;
+		--category-1: #139189;
+		--category-2: #28738a;
+		--category-3: #1d43b1;
+		--category-4: #8665db;
+		--category-5: #87126c;
 		--select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' fill='none' stroke='%23625D55' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
 		--status-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3 3h14v14H3zM10 9v5M10 6v1' fill='none' stroke='%231C1A17' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
 	}

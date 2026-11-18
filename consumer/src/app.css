@@ -11,6 +11,13 @@
 .instant-spinner {
 	--spinner-delay: 0ms;
 }
+.low-chart {
+	--bar-chart-height: 96px;
+}
+.wide-spark {
+	--sparkline-width: 300px;
+	--sparkline-height: 48px;
+}
 .page {
 	display: grid;
 	gap: var(--space-6);
@@ -47,4 +54,14 @@ own-row {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+}
+
+/* A narrow column, to wrap a Section head. */
+.narrow-column {
+	max-width: 20rem;
+}
+
+.cell-tags {
+	display: inline-flex;
+	gap: var(--space-1);
 }

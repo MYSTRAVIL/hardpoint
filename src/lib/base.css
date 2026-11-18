@@ -144,6 +144,79 @@ body {
 	box-shadow: inset 3px 0 0 var(--accent);
 }
 
+/* ---- Tab strip --------------------------------------------------------- */
+
+/* The look of Tabs and TabNav: one row of caps tabs that scrolls sideways
+   when they do not fit, and a selected tab with the selected tint and a 3px
+   titanium edge on the side that faces the content. Tabs puts the classes on
+   its Bits UI list and triggers, TabNav on its nav and links; Bits UI's
+   `data-state` and `aria-current="page"` mark the selected tab. */
+
+/* The strip reaches --bleed past the text edge, as the table band does, and
+   each tab pads by --bleed, so the first label keeps the page's text edge.
+   Scrolling a tab into view leaves part of the next one showing. A thin bar
+   on fine pointers, where a wheel cannot scroll sideways without one; touch
+   swipes. */
+.hp-tab-strip {
+	display: flex;
+	margin-inline: calc(-1 * var(--bleed));
+	overflow-x: auto;
+	overscroll-behavior-x: contain;
+	scroll-padding-inline: var(--space-8);
+	scrollbar-width: thin;
+}
+@media (pointer: coarse) {
+	.hp-tab-strip {
+		scrollbar-width: none;
+	}
+}
+
+/* The visible box is the hit area: --control-height high (44px on coarse
+   pointers) and never narrower than --hit-target. */
+.hp-tab {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-width: var(--hit-target);
+	min-height: var(--control-height);
+	padding: 0 var(--bleed);
+	border: 0;
+	background: transparent;
+	color: var(--text);
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* Selected: the edge and the tint, text unchanged. Selection snaps, so
+   nothing on a tab transitions: a fading hover tint would also animate the
+   tab an arrow key just left while the pointer rests on it. */
+.hp-tab[data-state='active'],
+.hp-tab[aria-current='page'] {
+	background: var(--surface-selected);
+	box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+/* Hover: fine pointers only, never on the selected tab. */
+@media (hover: hover) and (pointer: fine) {
+	.hp-tab:not([data-state='active'], [aria-current='page'], :disabled):hover {
+		background: var(--surface-hover);
+	}
+}
+
+/* Press: one step past hover, so it reads on a phone too. */
+.hp-tab:not([data-state='active'], [aria-current='page'], :disabled):active {
+	background: var(--surface-raised);
+}
+
+.hp-tab:disabled {
+	color: var(--muted);
+	cursor: not-allowed;
+}
+
 /* ---- Type roles -------------------------------------------------------- */
 
 /* Tracked caps for short fixed labels: buttons, tabs, tags, column headers,

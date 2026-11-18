@@ -2,6 +2,34 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
+## 0.6.0 (2026-11-18)
+
+The parts topic-map's move asked for. Nothing is renamed or removed. One type changes: `MenuItem`'s `ref` is now `HTMLElement | null`.
+
+- **Added**:
+  - Category tokens `--category-1` to `--category-5` (teal, sky, blue, violet, magenta) in all three palette blocks, for data categories only: chart series, graph nodes, legends and a chip's category edge. Never use them for controls or text, and always pair them with a label or a legend. The hues sit between the green and red status hues, measure 3:1 or more on the canvas, `--surface-hover` and `--surface-selected` in both themes, and stay apart under protan, deutan and tritan simulation.
+  - `Section`: a frameless block with a title (`titleAs` `h2` to `h6`), `meta`, `actions`, a flush body and an optional `foot`. Sections stack 48 px apart. New types `SectionProps`, `SectionTitleElement`.
+  - `Status`: an inline square mark and label, with `tone` (`ok`, `warn`, `danger`; untoned is `--muted`) and `live`, a slow opacity pulse that stops under reduced motion. New types `StatusProps`, `StatusTone`.
+  - `<Motion paused>`, `useMotion().paused` and `setMotionPaused` in `@mystravil/hardpoint/motion`, to pause motion that runs by itself, such as a live Status (WCAG 2.2.2). `MotionState` gains a `paused` field.
+  - The `--dur-pulse` token (2400 ms).
+  - `MultiSelect`: several values from a list, for filters. `value: string[]` (bindable) and `items` (`{ value, label, count?, group?, description?, disabled? }`). The trigger is Select's well and shows the placeholder, the one chosen label, or `selectedText(count)`. Options have Checkbox's box and an optional count. A search box appears above more than `searchThreshold` (8) options, and a clear button sits in the well. Chosen values that are not among `items` stay listed first. It takes `hint`, `error`, `labelBeside`, `name` (one hidden input per value) and `required`, and opens in the shared bottom sheet below 600 px. New types `MultiSelectProps`, `MultiSelectItem`, `MultiSelectLabelBeside`.
+  - `Chip`: a data value as written in an outlined block (1 px `--border-control`, no fill, Geist, never caps). `href` makes it a link with an outlined button's states. `count` adds a muted tabular number. `tentative` dashes the edge and adds hidden words (`tentativeLabel`, default `tentative`). `category` (1 to 5) draws a 3 px start edge in `--category-N`. `onremove` adds a remove button beside the text or link, never inside it, named `Remove <label>` (`removeLabel`), a 24 px target with a mouse and 44 px on touch. When a removed chip held focus, focus moves to the next chip in the same list, or the previous one. New types `ChipProps`, `ChipCategory`.
+  - `ChipField`: a text field whose values become chips (`value: string[]`, bindable). Enter adds the trimmed text, and a comma stays part of the value. Repeats are not added. Suggestions come from a native `<datalist>`, and a picked one is added at once. Backspace in the empty field moves to the last chip's remove button. `name` posts each value as a hidden input, and a hidden status line reports each change. `format` shows a value as other text; `removeLabel`, `addedText`, `removedText` and `duplicateText` set the words. New type `ChipFieldProps`.
+  - `BarChart`: vertical bars, stacked when there are two or more series. Series take `--category-1` to `--category-5` by default, the inks `text` and `muted`, or a status `tone`. A legend readout above the plot shows one bar's values for the mouse, a tap or the arrow keys, and a visually hidden table holds every value. Scale and axis labels are Geist Mono in `--muted`, hairlines are `--border`, bars sit on whole pixels, and nothing animates. `--bar-chart-height` sets the plot height (default 160 px). New types `BarChartProps`, `BarChartItem`, `BarChartSeries`, `BarChartColor`, `BarChartTone`.
+  - `Sparkline`: an inline line of readings with an area under it and a 6 px square at the last reading, and no axes. It is an image named by `label` and the last reading. `null` keeps its place, `min` and `max` widen the scale, `color` and `tone` set the colour, and `--sparkline-width` and `--sparkline-height` set the size (default 96 by 24 px). New types `SparklineProps`, `SparklineColor`, `SparklineTone`.
+  - `MenuItem` takes `href`, with `target`, `rel` and `download`: a real `<a>` that keeps the menuitem role, follows the link on a press, Enter or Space, and closes the menu. A disabled link item has no address.
+  - `Slider`: a caps label with the value shown live beside it (`format`, `valueText`), `value`, `min`, `max`, `step`, `hint` and `disabled`. New type `SliderProps`.
+  - `TextField` types `number`, `date`, `time` and `datetime-local`, with the browser's own pickers. `value` stays a string. Spin buttons are hidden, and a number field sets `inputmode` itself where it helps.
+  - `Table` sortable columns: `sortable` and `sortFirst` on a column make its header label a button with `aria-sort`. `bind:sort` reports `{ key, direction }` (new types `TableSort`, `TableSortDirection`), and the app reorders the rows. Below 600 px a sort select above the stacked list sets the same value. New labels `sortLabel`, `unsortedLabel`, `ascendingLabel`, `descendingLabel`.
+  - `Table` `wide` for data grids: natural widths, no ellipsis, a scroll region that takes focus while it scrolls, a sticky first column, 1 px scroll edges, and no stacking on phones.
+  - `Table` expandable rows through a `detail` snippet and `bind:expanded`. The expand button has `aria-expanded`, `aria-controls` and the `expandLabel` name. The detail fades in over `--dur-expand`, and closing cuts.
+  - `Table` `description` on a column, opened from a named info button in a Popover (a sheet on phones). New labels `aboutLabel`, `aboutColumnsLabel`.
+  - `TabNav`: route tabs as a `<nav>` of links in the Tabs look, with `aria-current="page"` on `current`. New types `TabNavItem`, `TabNavProps`.
+- **Changed**:
+  - `MenuItem` `ref` is typed `HTMLElement | null` (was `HTMLDivElement`), because a link item is an `<a>`.
+  - `Tabs` takes its strip and tab styles from the new global `.hp-tab-strip` and `.hp-tab` classes in `base.css`, shared with `TabNav`. It looks the same.
+  - `Table`: a header band with a sort or description button is 44 px tall on touch (36 px with a mouse, as before). Tables without these buttons are unchanged. Table now imports NativeSelect, Popover and Button, so an app that uses Table bundles them too.
+
 ## 0.5.0 (2026-11-13)
 
 Breaking: three props are renamed, Checkbox, Switch, Progress, Meter and icon Buttons need an accessible name in their types, and DOM tests wait one tick after a Dialog's first open, so a consumer must adapt (the **Changed (breaking)** list below).

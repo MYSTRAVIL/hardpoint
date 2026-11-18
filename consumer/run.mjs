@@ -115,9 +115,10 @@ async function assertFirstDialogOpen(c, trigger) {
 }
 
 // The computed display of the browser's own cancel button inside the search
-// input `selector` matches. It sits in the input's user-agent shadow root,
-// which only the DevTools protocol reaches.
-async function searchCancelDisplay(page, selector) {
+// input `selector` matches, or of another user-agent part (`pseudo`). It sits
+// in the input's user-agent shadow root, which only the DevTools protocol
+// reaches.
+async function searchCancelDisplay(page, selector, pseudo = '-webkit-search-cancel-button') {
 	const cdp = await page.context().newCDPSession(page);
 	try {
 		await cdp.send('DOM.enable');
@@ -129,7 +130,7 @@ async function searchCancelDisplay(page, selector) {
 		const input = find(root, (n) => n.nodeId === nodeId);
 		const cancel = find(input, (n) => {
 			const a = n.attributes ?? [];
-			for (let i = 0; i < a.length; i += 2) if (a[i] === 'pseudo' && a[i + 1] === '-webkit-search-cancel-button') return true;
+			for (let i = 0; i < a.length; i += 2) if (a[i] === 'pseudo' && a[i + 1] === pseudo) return true;
 			return false;
 		});
 		if (!cancel) return 'absent';
@@ -451,6 +452,148 @@ const drivers = {
 		}
 	},
 
+	async multiselect(c) {
+		const { page } = c;
+		const POPUP = ['role', 'aria-haspopup', 'aria-expanded', 'aria-controls'];
+		const text = async (loc) => ((await loc.textContent()) ?? '').trim();
+		const focused = (loc) => loc.evaluate((n) => n === document.activeElement);
+		const type = page.getByRole('combobox', { name: 'Type', exact: true });
+		// The trigger comes before the search box, which is named by the same label.
+		const city = page.getByRole('combobox', { name: 'City', exact: true }).first();
+		await c.step('closed multi-selects mount no layers; trigger ARIA and summary', async () => {
+			await assertClosedMountNothing(
+				c,
+				page.getByRole('button', { name: 'Mount closed fields' }),
+				page.getByRole('combobox', { name: 'Closed long', exact: true }),
+				'two closed multi-selects'
+			);
+			if (await page.getByRole('listbox').count()) throw new Error('a closed list is in the DOM');
+			const short = page.getByRole('combobox', { name: 'Closed short', exact: true });
+			const long = page.getByRole('combobox', { name: 'Closed long', exact: true });
+			// Up to eight options Bits UI's Select trigger over a listbox; more open a panel with a search box.
+			const shortAria = await attrs(short, POPUP);
+			if (!same(shortAria, ['combobox', 'listbox', 'false', null])) throw new Error('closed short ARIA: ' + JSON.stringify(shortAria));
+			const longAria = await attrs(long, POPUP);
+			if (!same(longAria, ['combobox', 'dialog', 'false', null])) throw new Error('closed long ARIA: ' + JSON.stringify(longAria));
+			const summaries = [await text(short), await text(long), await text(type)];
+			if (!same(summaries, ['2 selected', 'Tokyo', 'PDF'])) throw new Error('closed summaries: ' + JSON.stringify(summaries));
+		});
+		await c.step('short list: first open, multiselectable listbox, counts in option names, toggles, focus back', async () => {
+			await recordEntrance(page, '.hp-multi-select-list, .hp-sheet');
+			if (c.touch) await c.press(type);
+			else {
+				await type.focus();
+				await page.keyboard.press('Enter');
+			}
+			const list = page.getByRole('listbox');
+			await list.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await assertEntrance(page);
+			if ((await list.getAttribute('aria-multiselectable')) !== 'true') throw new Error('the listbox is not multiselectable');
+			const [, , expanded, controls] = await attrs(type, POPUP);
+			if (expanded !== 'true' || !controls || controls !== (await list.getAttribute('id'))) {
+				throw new Error(`open trigger: expanded=${expanded} controls=${controls}`);
+			}
+			const tree = await list.ariaSnapshot();
+			if (!/option "PDF\W+124" \[selected\]/.test(tree) || !/option "Archive\W+9" \[disabled\]/.test(tree)) {
+				throw new Error('option names or states: ' + tree.replace(/\n/g, ' | '));
+			}
+			if (c.touch) {
+				const h = await list.getByRole('option').first().evaluate((n) => n.getBoundingClientRect().height);
+				c.info(`multi-select sheet row: ${h}px`);
+				if (h < 44) throw new Error(`a sheet row is ${h}px high`);
+				await c.press(list.getByRole('option', { name: /^Spreadsheet/ }));
+				await wait(200);
+				if ((await text(page.locator('#type-value'))) !== 'pdf,sheet') throw new Error('a tap did not toggle: ' + (await text(page.locator('#type-value'))));
+				await c.press(page.locator('.hp-sheet').getByRole('button', { name: 'Close', exact: true }));
+				await list.waitFor({ state: 'hidden', timeout: 3000 });
+				return;
+			}
+			// The highlight opens on the first chosen option, PDF.
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('Space');
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('Enter');
+			await wait(200);
+			if ((await text(page.locator('#type-value'))) !== 'pdf,sheet,image') throw new Error('Space and Enter: ' + (await text(page.locator('#type-value'))));
+			if ((await text(type)) !== '3 selected') throw new Error('summary after toggles: ' + (await text(type)));
+			await page.keyboard.press('Escape');
+			await list.waitFor({ state: 'hidden', timeout: 3000 });
+			if (!(await focused(type))) throw new Error('focus did not return to the trigger');
+			const closed = await attrs(type, POPUP);
+			if (!same(closed, ['combobox', 'listbox', 'false', null])) throw new Error('trigger ARIA after closing: ' + JSON.stringify(closed));
+		});
+		await c.step('long list: search box keeps the keys, a value not in items stays listed, focus back', async () => {
+			await recordEntrance(page, '.hp-multi-select-panel, .hp-sheet');
+			await c.press(city);
+			const dialog = page.getByRole('dialog', { name: 'City' });
+			await dialog.waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+			await assertEntrance(page);
+			const [, , expanded, controls] = await attrs(city, POPUP);
+			if (expanded !== 'true' || !controls || controls !== (await dialog.getAttribute('id'))) {
+				throw new Error(`open trigger: expanded=${expanded} controls=${controls}`);
+			}
+			const search = dialog.getByRole('combobox');
+			const list = dialog.getByRole('listbox');
+			if ((await list.getAttribute('aria-multiselectable')) !== 'true') throw new Error('the listbox is not multiselectable');
+			const first = list.getByRole('option').first();
+			if (!(await text(first)).startsWith('atlantis') || (await first.getAttribute('aria-selected')) !== 'true') {
+				throw new Error('the value not in items is not listed first and chosen: ' + (await text(first)));
+			}
+			if (c.touch) {
+				// A touch opens it without the on-screen keyboard; a tap on the box brings it up.
+				if (await focused(search)) throw new Error('a touch focused the search box');
+				const size = await search.evaluate((n) => getComputedStyle(n).fontSize);
+				if (size !== '16px') throw new Error('search box text is ' + size);
+				await c.press(search);
+				if (!(await focused(search))) throw new Error('a tap did not focus the search box');
+			} else if (!(await focused(search))) throw new Error('the search box has no focus after the open');
+			await page.keyboard.type('asi', { delay: 30 });
+			await wait(300);
+			const shown = (await list.getByRole('option').allTextContents()).map((t) => t.trim());
+			if (shown.length !== 3 || !shown[0].startsWith('Tokyo')) throw new Error('search "asi": ' + JSON.stringify(shown));
+			const [active] = await attrs(search, ['aria-activedescendant']);
+			const highlighted = await list.locator('[data-highlighted]').getAttribute('id');
+			if (!highlighted || active !== highlighted) throw new Error(`activedescendant=${active} highlighted=${highlighted}`);
+			await page.keyboard.press('ArrowDown');
+			await page.keyboard.press('Enter');
+			await wait(200);
+			if ((await search.inputValue()) !== 'asi') throw new Error('the search box holds "' + (await search.inputValue()) + '" after Enter');
+			if ((await text(page.locator('#city-value'))) !== 'lisbon,atlantis,seoul') throw new Error('Enter while typing: ' + (await text(page.locator('#city-value'))));
+			if (c.touch) await c.press(dialog.getByRole('button', { name: 'Close', exact: true }));
+			else await page.keyboard.press('Escape');
+			await dialog.waitFor({ state: 'hidden', timeout: 3000 });
+			if (!(await focused(city))) throw new Error('focus did not return to the trigger');
+			const closed = await attrs(city, POPUP);
+			if (!same(closed, ['combobox', 'dialog', 'false', null])) throw new Error('trigger ARIA after closing: ' + JSON.stringify(closed));
+		});
+		await c.step('Clear removes every value and puts focus on the trigger', async () => {
+			const clear = page.getByRole('button', { name: 'Clear City', exact: true });
+			await c.press(clear);
+			await wait(200);
+			if ((await text(page.locator('#city-value'))) !== '') throw new Error('values left: ' + (await text(page.locator('#city-value'))));
+			if ((await text(city)) !== 'Any') throw new Error('summary after Clear: ' + (await text(city)));
+			if (!(await focused(city))) throw new Error('focus is not on the trigger after Clear');
+			if (await clear.count()) throw new Error('the clear button stays with nothing chosen');
+		});
+		await c.step('forms: one input per value; required stops a native submit and focuses the trigger', async () => {
+			const want = (await text(page.locator('#type-value')))
+				.split(',')
+				.map((v) => 'type=' + v)
+				.join('&');
+			await c.press(page.getByRole('button', { name: 'Send', exact: true }));
+			await wait(200);
+			if ((await text(page.locator('#submitted'))) !== want) throw new Error(`submitted "${await text(page.locator('#submitted'))}", expected "${want}"`);
+			await c.press(page.getByRole('button', { name: 'Check', exact: true }));
+			await wait(300);
+			if (await text(page.locator('#checked'))) throw new Error('an empty required field let its form submit');
+			const needed = page.getByRole('combobox', { name: 'Needed', exact: true });
+			if ((await needed.getAttribute('aria-required')) !== 'true') throw new Error('no aria-required on the trigger');
+			if (!(await focused(needed))) throw new Error('the browser did not land on the required trigger');
+		});
+	},
+
 	async menus(c) {
 		const { page } = c;
 		const triggerAria = (name) =>
@@ -529,6 +672,412 @@ const drivers = {
 		});
 	},
 
+	async menulinks(c) {
+		const { page } = c;
+		const trigger = page.getByRole('button', { name: 'Go to', exact: true });
+		const state = () => page.locator('#link-state').textContent();
+		const hash = () => page.evaluate(() => location.hash);
+		const open = async () => {
+			await c.press(trigger);
+			await page.getByRole('menu').waitFor({ state: 'visible', timeout: 3000 });
+			await wait(400);
+		};
+		const closed = () => page.getByRole('menu').waitFor({ state: 'hidden', timeout: 3000 });
+		await c.step('a link item is an <a href> with the menuitem role', async () => {
+			await open();
+			const read = (name) =>
+				page.getByRole('menuitem', { name, exact: true }).evaluate((n) => ({
+					tag: n.tagName,
+					href: n.getAttribute('href'),
+					target: n.getAttribute('target'),
+					rel: n.getAttribute('rel'),
+					download: n.getAttribute('download'),
+					tone: n.getAttribute('data-tone'),
+					disabled: n.getAttribute('aria-disabled'),
+					color: getComputedStyle(n).color,
+					decoration: getComputedStyle(n).textDecorationLine
+				}));
+			const next = await read('Next page');
+			if (next.tag !== 'A' || next.href !== '#next-page') throw new Error('link item: ' + JSON.stringify(next));
+			if (next.decoration !== 'none') throw new Error('link item is underlined: ' + next.decoration);
+			const plain = await read('A plain action');
+			if (plain.tag !== 'DIV' || plain.href !== null) throw new Error('plain item: ' + JSON.stringify(plain));
+			if (next.color !== plain.color) throw new Error(`link colour ${next.color} differs from the row's ${plain.color}`);
+			const docs = await read('Docs in a new tab');
+			if (docs.target !== '_blank' || docs.rel !== 'noreferrer') throw new Error('target and rel: ' + JSON.stringify(docs));
+			const file = await read('Download export');
+			if (file.download !== 'export.csv') throw new Error('download: ' + JSON.stringify(file));
+			const danger = await read('Removal page');
+			if (danger.tone !== 'danger' || danger.href !== '#removal-page' || danger.color === next.color) {
+				throw new Error('danger link: ' + JSON.stringify(danger));
+			}
+			if ((await state()) !== 'selected=[] ref=A') throw new Error('ref of a link item: ' + (await state()));
+		});
+		await c.step('a disabled link item has no address and is not a link', async () => {
+			const off = await page.getByRole('menuitem', { name: 'Unavailable page', exact: true }).evaluate((n) => ({
+				tag: n.tagName,
+				href: n.getAttribute('href'),
+				disabled: n.getAttribute('aria-disabled')
+			}));
+			if (off.tag !== 'DIV' || off.href !== null || off.disabled !== 'true') throw new Error(JSON.stringify(off));
+			// Playwright will not act on an aria-disabled element, so press at its centre.
+			const at = await page.getByRole('menuitem', { name: 'Unavailable page', exact: true }).boundingBox();
+			if (c.touch) await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
+			else await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+			await wait(300);
+			if ((await hash()) === '#unavailable-page') throw new Error('a disabled item followed its link');
+			if (!(await page.getByRole('menu').isVisible())) throw new Error('a disabled item closed the menu');
+		});
+		await c.step('a press follows the link, runs onSelect and closes the menu', async () => {
+			await c.press(page.getByRole('menuitem', { name: 'Next page', exact: true }));
+			await closed();
+			if ((await hash()) !== '#next-page') throw new Error('hash after the press: ' + (await hash()));
+			if (!(await state()).includes('selected=[next]')) throw new Error('state: ' + (await state()));
+		});
+		await c.step('Enter on the highlighted link follows it and closes the menu', async () => {
+			await page.evaluate(() => history.replaceState(null, '', '#'));
+			await trigger.focus();
+			await page.keyboard.press('Enter');
+			await page.getByRole('menu').waitFor({ state: 'visible', timeout: 3000 });
+			await wait(300);
+			const focused = await page.evaluate(() => `${document.activeElement?.tagName}:${document.activeElement?.getAttribute('role')}:${document.activeElement?.textContent?.trim()}`);
+			if (focused !== 'A:menuitem:Next page') throw new Error('focus after Enter on the trigger: ' + focused);
+			await page.keyboard.press('ArrowDown'); // the disabled item is skipped
+			const second = await page.evaluate(() => document.activeElement?.textContent?.trim());
+			if (second !== 'Docs in a new tab') throw new Error('the arrow keys landed on ' + second);
+			await page.keyboard.press('ArrowUp');
+			await page.keyboard.press('Enter');
+			await closed();
+			if ((await hash()) !== '#next-page') throw new Error('hash after Enter: ' + (await hash()));
+			if (!(await trigger.evaluate((n) => n === document.activeElement))) throw new Error('focus did not return to the trigger');
+		});
+		await c.step('Space follows the link too', async () => {
+			await page.evaluate(() => history.replaceState(null, '', '#'));
+			await trigger.focus();
+			await page.keyboard.press('Enter');
+			await page.getByRole('menu').waitFor({ state: 'visible', timeout: 3000 });
+			await wait(300);
+			await page.keyboard.press('Space');
+			await closed();
+			if ((await hash()) !== '#next-page') throw new Error('hash after Space: ' + (await hash()));
+		});
+		if (c.touch) {
+			await c.step('the press that opened the sheet never follows a link under it', async () => {
+				await page.evaluate(() => history.replaceState(null, '', '#'));
+				await open();
+				const item = page.getByRole('menuitem', { name: 'Next page', exact: true });
+				// A click with no press inside the sheet: the opening tap's click.
+				const notCancelled = await item.evaluate((n) => n.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })));
+				await wait(200);
+				if (notCancelled || (await hash()) === '#next-page') throw new Error('the click followed the link (cancelled=' + !notCancelled + ')');
+				if (!(await page.getByRole('menu').isVisible())) throw new Error('the click closed the sheet');
+				await c.press(item);
+				await closed();
+				if ((await hash()) !== '#next-page') throw new Error('a real tap did not follow the link: ' + (await hash()));
+			});
+		}
+	},
+
+	async slider(c) {
+		const { page } = c;
+		const state = () => page.locator('#slider-state').textContent();
+		const field = (name) => page.getByRole('slider', { name, exact: true });
+		const box = (name) => page.locator('.hp-slider', { has: page.getByRole('slider', { name, exact: true }) }).locator('.hp-slider-control');
+		const now = async (name) => Number(await field(name).getAttribute('aria-valuenow'));
+		await c.step('role, range, value text, name and description', async () => {
+			const thumb = field('Opacity');
+			const a = await attrs(thumb, ['role', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext', 'aria-orientation', 'tabindex']);
+			if (!same(a, ['slider', '0', '100', '60', '60%', 'horizontal', '0'])) throw new Error('opacity thumb: ' + JSON.stringify(a));
+			const text = await attrs(field('Quality'), ['aria-valuetext']);
+			if (text[0] !== 'Level 3 of 10') throw new Error('valueText: ' + JSON.stringify(text));
+			const described = await thumb.evaluate((n) => document.getElementById(n.getAttribute('aria-describedby') ?? '')?.textContent);
+			if (described !== 'How much of the image shows.') throw new Error('hint is not the description: ' + described);
+			const shown = await page.locator('.hp-slider-value').allTextContents();
+			if (shown.join('|') !== '60%|0.40|3|20%') throw new Error('shown values ' + shown.join('|'));
+		});
+		await c.step('the thumb and the range sit where Bits UI puts them (CSSOM styles under the policy)', async () => {
+			const control = await box('Opacity').boundingBox();
+			const thumb = await field('Opacity').boundingBox();
+			const centre = thumb.x + thumb.width / 2;
+			const want = control.x + control.width * 0.6;
+			if (Math.abs(centre - want) > 1.5) throw new Error(`thumb centre ${centre}, wanted ${want}`);
+			const range = await box('Opacity').locator('.hp-slider-range').boundingBox();
+			if (Math.abs(range.x + range.width - centre) > 1.5) throw new Error(`range ends at ${range.x + range.width}, thumb centre ${centre}`);
+			const styleAttrs = await page.evaluate(() => [...document.querySelectorAll('.hp-slider [style]')].map((n) => n.className));
+			c.info('elements with a style attribute set through the CSSOM: ' + styleAttrs.join(', '));
+		});
+		await c.step('size, hit areas and a square thumb', async () => {
+			const control = await box('Opacity').boundingBox();
+			const thumb = await field('Opacity').boundingBox();
+			c.info(`control ${control.width}x${control.height}, thumb ${thumb.width}x${thumb.height}`);
+			const hit = c.touch ? 44 : 24;
+			if (control.height < hit) throw new Error('track area is ' + control.height + 'px high');
+			const radius = await field('Opacity').evaluate((n) => getComputedStyle(n).borderRadius);
+			if (radius !== '0px') throw new Error('thumb radius ' + radius);
+			// The thumb's own hit area: points a little off its body still reach it.
+			const cx = thumb.x + thumb.width / 2;
+			const cy = thumb.y + thumb.height / 2;
+			const reach = hit / 2 - 2;
+			for (const [dx, dy] of [[-reach, 0], [reach, 0], [0, -reach], [0, reach]]) {
+				const hitTag = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('role'), [cx + dx, cy + dy]);
+				if (hitTag !== 'slider') throw new Error(`point ${dx},${dy} off the thumb hits ${hitTag}`);
+			}
+		});
+		await c.step('keys: arrows, Home and End; the shown value is live', async () => {
+			await field('Opacity').focus();
+			await page.keyboard.press('ArrowRight');
+			await page.keyboard.press('ArrowRight');
+			if ((await now('Opacity')) !== 62) throw new Error('after two ArrowRight: ' + (await now('Opacity')));
+			await page.keyboard.press('ArrowLeft');
+			await page.keyboard.press('Home');
+			if ((await now('Opacity')) !== 0) throw new Error('Home: ' + (await now('Opacity')));
+			await page.keyboard.press('End');
+			if ((await now('Opacity')) !== 100) throw new Error('End: ' + (await now('Opacity')));
+			const live = await page.locator('.hp-slider-value').first().textContent();
+			if (live !== '100%') throw new Error('shown value ' + live);
+			if (!(await state()).includes('opacity=100')) throw new Error('bound value ' + (await state()));
+			const commits = Number((await state()).match(/commits=(\d+)/)[1]);
+			if (commits < 4) throw new Error('onValueCommit ran ' + commits + ' times for four key presses');
+			await field('Match threshold').focus();
+			await page.keyboard.press('ArrowRight');
+			const t = await attrs(field('Match threshold'), ['aria-valuenow', 'aria-valuetext']);
+			if (t[0] !== '0.45' || t[1] !== '0.45') throw new Error('a fractional step: ' + JSON.stringify(t));
+		});
+		await c.step('a press on the track moves the thumb under the pointer', async () => {
+			const control = await box('Opacity').boundingBox();
+			const y = control.y + control.height / 2;
+			const x = control.x + control.width * 0.25;
+			if (c.touch) await page.touchscreen.tap(x, y);
+			else await page.mouse.click(x, y);
+			await wait(100);
+			const v = await now('Opacity');
+			if (Math.abs(v - 25) > 1) throw new Error('after a press at 25%: ' + v);
+			if (!(await field('Opacity').evaluate((n) => n === document.activeElement))) throw new Error('the thumb did not take focus');
+		});
+		await c.step('a drag moves it and commits once', async () => {
+			const control = await box('Opacity').boundingBox();
+			const thumb = await field('Opacity').boundingBox();
+			const y = control.y + control.height / 2;
+			const x0 = thumb.x + thumb.width / 2;
+			const x1 = control.x + control.width * 0.8;
+			const before = Number((await state()).match(/commits=(\d+)/)[1]);
+			if (c.touch) {
+				await c.swipe(x0, y, x1, y);
+			} else {
+				await page.mouse.move(x0, y);
+				await page.mouse.down();
+				await page.mouse.move(x1, y, { steps: 8 });
+				await page.mouse.up();
+			}
+			await wait(150);
+			const v = await now('Opacity');
+			if (Math.abs(v - 80) > 2) throw new Error('after a drag to 80%: ' + v);
+			const after = Number((await state()).match(/commits=(\d+)/)[1]);
+			if (after !== before + 1) throw new Error(`commits went from ${before} to ${after} for one drag`);
+		});
+		await c.step('the track lets the page scroll vertically (touch-action)', async () => {
+			const ta = await box('Opacity').evaluate((n) => getComputedStyle(n).touchAction);
+			if (ta !== 'pan-y') throw new Error('touch-action ' + ta);
+		});
+		await c.step('disabled: no tab stop, no change', async () => {
+			const off = await attrs(field('Locked'), ['aria-disabled', 'tabindex']);
+			if (!same(off, ['true', '-1'])) throw new Error('disabled thumb: ' + JSON.stringify(off));
+			const control = await box('Locked').boundingBox();
+			const y = control.y + control.height / 2;
+			if (c.touch) await page.touchscreen.tap(control.x + control.width * 0.9, y);
+			else await page.mouse.click(control.x + control.width * 0.9, y);
+			await wait(100);
+			if ((await now('Locked')) !== 20) throw new Error('a disabled slider changed to ' + (await now('Locked')));
+		});
+	},
+
+	async tabnav(c) {
+		const { page } = c;
+		const nav = page.getByRole('navigation', { name: 'Settings pages', exact: true });
+		const state = () => page.locator('#nav-state').textContent();
+		const currents = () => nav.getByRole('link').evaluateAll((els) => els.filter((n) => n.getAttribute('aria-current') === 'page').map((n) => n.textContent));
+		const inView = () =>
+			nav.evaluate((n) => {
+				const tab = n.querySelector('[aria-current="page"]');
+				if (!tab) return null;
+				const a = n.getBoundingClientRect();
+				const b = tab.getBoundingClientRect();
+				return b.left >= a.left - 0.5 && b.right <= a.right + 0.5;
+			});
+		await c.step('a nav of links; the current tab has aria-current="page" and the selected look', async () => {
+			const links = await nav.getByRole('link').count();
+			if (links !== 8) throw new Error(links + ' links');
+			const now = await currents();
+			if (!same(now, ['Security'])) throw new Error('aria-current on ' + JSON.stringify(now));
+			const look = await nav.evaluate((n) => {
+				const cur = getComputedStyle(n.querySelector('[aria-current="page"]'));
+				const other = getComputedStyle(n.querySelector('a:not([aria-current])'));
+				return { curBg: cur.backgroundColor, otherBg: other.backgroundColor, curShadow: cur.boxShadow, otherShadow: other.boxShadow, deco: cur.textDecorationLine, color: cur.color, strip: n.classList.contains('hp-tab-strip'), cls: n.className };
+			});
+			if (look.curBg === look.otherBg || look.curShadow === 'none' || look.otherShadow !== 'none') throw new Error('selected look: ' + JSON.stringify(look));
+			if (look.deco !== 'none') throw new Error('tabs are underlined: ' + look.deco);
+			if (!look.cls.includes('settings-nav')) throw new Error('class is not merged: ' + look.cls);
+			c.info('selected edge: ' + look.curShadow);
+			if (!/ -3px /.test(look.curShadow)) throw new Error('no 3px edge on the side facing the content: ' + look.curShadow);
+		});
+		await c.step('the strip scrolls and shows the current tab; the page does not scroll sideways', async () => {
+			const m = await nav.evaluate((n) => ({ sw: n.scrollWidth, cw: n.clientWidth, left: n.scrollLeft, page: document.documentElement.scrollWidth - innerWidth }));
+			c.info('strip ' + JSON.stringify(m));
+			if (m.page > 0) throw new Error('the page scrolls sideways by ' + m.page);
+			if (c.touch && m.sw <= m.cw) throw new Error('eight tabs fit a phone');
+			if (!(await inView())) throw new Error('the current tab is not in view');
+		});
+		await c.step('a new current reveals its tab and moves the mark', async () => {
+			await c.press(page.getByRole('button', { name: 'Show general', exact: true }));
+			await wait(200);
+			if (!same(await currents(), ['General'])) throw new Error('now ' + JSON.stringify(await currents()));
+			if (!(await inView())) throw new Error('General is not in view');
+			await c.press(page.getByRole('button', { name: 'Show advanced', exact: true }));
+			await wait(200);
+			if (!same(await currents(), ['Advanced'])) throw new Error('now ' + JSON.stringify(await currents()));
+			if (!(await inView())) throw new Error('Advanced is not in view');
+			await c.press(page.getByRole('button', { name: 'Show none', exact: true }));
+			await wait(200);
+			if ((await currents()).length) throw new Error('a page with no tab left a mark on ' + JSON.stringify(await currents()));
+		});
+		await c.step('links: Tab moves between them, Enter follows, a press follows', async () => {
+			await page.evaluate(() => history.replaceState(null, '', '#'));
+			await nav.getByRole('link', { name: 'General', exact: true }).focus();
+			await page.keyboard.press('Tab');
+			const focused = await page.evaluate(() => document.activeElement?.textContent);
+			if (focused !== 'Members') throw new Error('Tab went to ' + focused);
+			await page.keyboard.press('Enter');
+			await wait(100);
+			if ((await page.evaluate(() => location.hash)) !== '#members') throw new Error('Enter: hash ' + (await page.evaluate(() => location.hash)));
+			await c.press(nav.getByRole('link', { name: 'General', exact: true }));
+			await wait(100);
+			if ((await page.evaluate(() => location.hash)) !== '#general') throw new Error('press: hash ' + (await page.evaluate(() => location.hash)));
+		});
+		await c.step('the nav is a ref and a second nav keeps its own mark', async () => {
+			if (!(await state()).includes('ref=NAV')) throw new Error('ref: ' + (await state()));
+			const short = page.getByRole('navigation', { name: 'Short list', exact: true });
+			const cur = await short.getByRole('link').evaluateAll((els) => els.filter((n) => n.getAttribute('aria-current') === 'page').map((n) => n.textContent));
+			if (!same(cur, ['Members'])) throw new Error('short list: ' + JSON.stringify(cur));
+		});
+		await c.step('the tab is a 44px target on touch', async () => {
+			const h = await nav.getByRole('link').first().evaluate((n) => n.getBoundingClientRect().height);
+			c.info('tab height ' + h);
+			if (h < (c.touch ? 44 : 32)) throw new Error('tab height ' + h);
+		});
+	},
+
+	async typedfields(c) {
+		const { page } = c;
+		const state = () => page.locator('#typed-state').textContent();
+		const field = (label) => page.getByLabel(label, { exact: true });
+		await c.step('types, pass-through attributes and the inputmode a number field picks', async () => {
+			const rows = {
+				Seats: ['number', '1', '500', 'numeric'],
+				Weight: ['number', '0', null, 'decimal'],
+				Offset: ['number', null, null, null],
+				'Forced mode': ['number', '0', null, 'text'],
+				Day: ['date', '2026-01-01', '2026-12-31', null],
+				At: ['time', null, null, null],
+				Until: ['datetime-local', null, null, null]
+			};
+			for (const [label, want] of Object.entries(rows)) {
+				const got = await attrs(field(label), ['type', 'min', 'max', 'inputmode']);
+				if (!same(got, want)) throw new Error(`${label}: ${JSON.stringify(got)}, wanted ${JSON.stringify(want)}`);
+			}
+			const step = await attrs(field('At'), ['step']);
+			if (step[0] !== '900') throw new Error('step ' + step);
+		});
+		await c.step('a number is a string: "1.5" while typing, the typed text is never reset', async () => {
+			const weight = field('Weight');
+			await weight.click();
+			await page.keyboard.type('1.');
+			await wait(100);
+			await page.keyboard.type('5');
+			await wait(100);
+			const shown = await weight.inputValue();
+			if (shown !== '1.5') throw new Error('the box shows ' + JSON.stringify(shown));
+			if (!(await state()).includes('weight=[1.5]')) throw new Error('bound value: ' + (await state()));
+			await page.keyboard.type('0');
+			if ((await weight.inputValue()) !== '1.50' || !(await state()).includes('weight=[1.50]')) throw new Error('trailing zero lost: ' + (await state()));
+			await weight.fill('');
+			await page.keyboard.type('-');
+			if (!(await state()).includes('weight=[]')) throw new Error('a lone minus is not an empty value: ' + (await state()));
+		});
+		await c.step('oninput still runs; the app can set and clear the value', async () => {
+			const seats = field('Seats');
+			await seats.fill('7');
+			if (!(await state()).includes('seats=[7]') || /heard=0/.test(await state())) throw new Error('state ' + (await state()));
+			await c.press(page.getByRole('button', { name: 'Set seats', exact: true }));
+			await wait(100);
+			if ((await seats.inputValue()) !== '42') throw new Error('the box shows ' + (await seats.inputValue()));
+			await field('Weight').fill('3');
+			await c.press(page.getByRole('button', { name: 'Clear weight', exact: true }));
+			await wait(100);
+			if ((await field('Weight').inputValue()) !== '') throw new Error('weight not cleared: ' + (await field('Weight').inputValue()));
+		});
+		await c.step('a form reset empties the number box and the bound value', async () => {
+			await field('In a form').fill('9');
+			if ((await page.locator('#form-state').textContent()) !== 'inForm=[9]') throw new Error('before the reset: ' + (await page.locator('#form-state').textContent()));
+			await c.press(page.getByRole('button', { name: 'Reset form', exact: true }));
+			await wait(200);
+			const after = await page.locator('#form-state').textContent();
+			if (after !== 'inForm=[]' || (await field('In a form').inputValue()) !== '') throw new Error('after the reset: ' + after);
+		});
+		await c.step('date, time and date and time hold the browser string', async () => {
+			await field('Day').fill('2026-11-18');
+			await field('At').fill('14:30');
+			await field('Until').fill('2026-11-18T14:30');
+			const s = await state();
+			if (!s.includes('day=[2026-11-18]') || !s.includes('at=[14:30]') || !s.includes('until=[2026-11-18T14:30]')) throw new Error(s);
+		});
+		await c.step('the well keeps its height and 16px text; spin buttons are hidden; the picker icon is a token mask', async () => {
+			const plain = await field('Plain').evaluate((n) => ({ h: n.getBoundingClientRect().height, fs: getComputedStyle(n).fontSize }));
+			for (const label of ['Seats', 'Day', 'At', 'Until']) {
+				const got = await field(label).evaluate((n) => ({ h: n.getBoundingClientRect().height, fs: getComputedStyle(n).fontSize, tnum: getComputedStyle(n).fontVariantNumeric }));
+				if (got.h !== plain.h || got.fs !== '16px') throw new Error(`${label}: ${JSON.stringify(got)}, plain ${JSON.stringify(plain)}`);
+				if (!got.tnum.includes('tabular-nums')) throw new Error(label + ' has no tabular figures: ' + got.tnum);
+			}
+			const appearance = await field('Seats').evaluate((n) => getComputedStyle(n).appearance);
+			if (appearance !== 'textfield') throw new Error('number appearance ' + appearance);
+			// The picker icon is a mask over a --muted fill, so the end of the box holds
+			// --muted pixels. (A pseudo-element's computed style cannot be read.)
+			const mutedAtEnd = async (label) => {
+				const loc = field(label);
+				const png = (await loc.screenshot()).toString('base64');
+				const width = (await loc.boundingBox()).width;
+				return page.evaluate(async ([b64, cssWidth]) => {
+					const img = new Image();
+					img.src = 'data:image/png;base64,' + b64;
+					await img.decode();
+					const cv = document.createElement('canvas');
+					cv.width = img.width;
+					cv.height = img.height;
+					const cx = cv.getContext('2d');
+					cx.drawImage(img, 0, 0);
+					const scale = img.width / cssWidth;
+					const x0 = Math.floor(img.width - 36 * scale);
+					const d = cx.getImageData(x0, 0, img.width - x0, img.height).data;
+					const hex = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+					const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+					let n = 0;
+					for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - r) + Math.abs(d[i + 1] - g) + Math.abs(d[i + 2] - bl) < 30) n++;
+					return n;
+				}, [png, width]);
+			};
+			for (const label of ['Day', 'At', 'Until']) {
+				const n = await mutedAtEnd(label);
+				c.info(label + ': ' + n + ' --muted pixels where the picker icon is');
+				if (n < 10) throw new Error(label + ' shows no --muted picker icon (' + n + ' pixels)');
+			}
+			const locked = await mutedAtEnd('Locked day');
+			if (locked > 0) throw new Error('a disabled date shows a picker icon (' + locked + ' pixels)');
+		});
+		await c.step('an error reaches a typed field', async () => {
+			const d = await attrs(field('Until'), ['aria-invalid']);
+			if (d[0] !== 'true') throw new Error('aria-invalid ' + d);
+		});
+	},
+
 	async search(c) {
 		const { page } = c;
 		const field = page.getByRole('searchbox', { name: 'Search this page' });
@@ -584,6 +1133,173 @@ const drivers = {
 		await c.step('clearLabel names the button; a disabled field has none', async () => {
 			if ((await page.getByRole('button', { name: 'Clear search' }).count()) !== 1) throw new Error('no "Clear search" button');
 			if ((await page.getByRole('button', { name: /^Clear/ }).count()) !== 1) throw new Error('a disabled or empty field shows a clear button');
+		});
+	},
+
+	async chips(c) {
+		const { page } = c;
+		const target = c.touch ? 44 : 24;
+		const state = () => page.locator('#chips-state').textContent();
+		const focused = () =>
+			page.evaluate(() => {
+				const a = document.activeElement;
+				return a?.getAttribute('aria-label') || a?.id || a?.tagName || null;
+			});
+		const field = page.getByRole('combobox', { name: 'Tags', exact: true });
+		const inField = () => field.evaluate((n) => n === document.activeElement);
+		const status = page.locator('.hp-chip-field', { has: field }).locator('[role=status]');
+		// Misses among nine points of the target-sized square centred on the element.
+		const misses = (loc) =>
+			loc.evaluate((n, size) => {
+				n.scrollIntoView({ block: 'center' });
+				const r = n.getBoundingClientRect();
+				const w = Math.max(r.width, size);
+				const h = Math.max(r.height, size);
+				let miss = 0;
+				for (const dy of [-1, 0, 1]) {
+					for (const dx of [-1, 0, 1]) {
+						const hit = document.elementFromPoint(r.left + r.width / 2 + dx * (w / 2 - 1.5), r.top + r.height / 2 + dy * (h / 2 - 1.5));
+						if (!hit || !(hit === n || n.contains(hit))) miss++;
+					}
+				}
+				return miss;
+			}, target);
+		await c.step('Geist as written; count and tentative words in the link name; dashed edge', async () => {
+			if ((await page.locator('#link-chip').evaluate((n) => n.tagName)) !== 'A') throw new Error('a chip with href is not a link');
+			if (!(await page.getByRole('link', { name: /^Design ?42$/ }).count())) throw new Error('no link named "Design 42"');
+			if (!(await page.getByRole('link', { name: /^Maybe ?, tentative$/ }).count())) throw new Error('no link named "Maybe, tentative"');
+			const [font, transform, edge] = await page.locator('#tentative-chip').evaluate((n) => {
+				const root = getComputedStyle(n.parentElement);
+				return [root.fontFamily, root.textTransform, root.borderTopStyle];
+			});
+			if (!font.startsWith('Geist') || transform !== 'none' || edge !== 'dashed') throw new Error(`font ${font}, transform ${transform}, edge ${edge}`);
+		});
+		await c.step('category: a 3px start edge in --category-3', async () => {
+			const [color, token, width, left] = await page.locator('#category-chip').evaluate((n) => {
+				const root = n.parentElement;
+				const after = getComputedStyle(root, '::after');
+				const probe = document.createElement('i');
+				probe.style.color = 'var(--category-3)';
+				root.append(probe);
+				const token = getComputedStyle(probe).color;
+				probe.remove();
+				return [after.backgroundColor, token, after.width, after.left];
+			});
+			if (color !== token || width !== '3px' || left !== '-1px') throw new Error(`edge ${color} (token ${token}), width ${width}, left ${left}`);
+		});
+		await c.step('remove buttons: named, outside the link, full targets that never overlap', async () => {
+			const unlink = page.getByRole('button', { name: 'Unlink Linked doc', exact: true });
+			if (await unlink.evaluate((n) => !!n.closest('a'))) throw new Error('the remove button is inside the link');
+			if ((await page.getByRole('button', { name: /^Remove / }).count()) !== 6) throw new Error('expected 6 default "Remove …" names');
+			const parts = [unlink, page.locator('#unlink-chip'), page.locator('#link-chip'), ...(await page.getByRole('button', { name: /^Remove / }).all())];
+			for (const loc of parts) {
+				const miss = await misses(loc);
+				const name = await loc.evaluate((n) => n.getAttribute('aria-label') || n.textContent.trim());
+				if (miss) throw new Error(`${name}: ${miss}/9 points of its ${target}px area miss it`);
+			}
+		});
+		await c.step('keys: a removal moves focus to the next chip, after the last to the previous', async () => {
+			await page.getByRole('button', { name: 'Remove Status: Open' }).focus();
+			await page.keyboard.press('Enter');
+			await wait(100);
+			if ((await focused()) !== 'Remove Label: Web') throw new Error('after Enter focus is on ' + (await focused()));
+			await page.getByRole('button', { name: 'Remove Size: Large' }).focus();
+			await page.keyboard.press('Delete');
+			await wait(100);
+			if ((await focused()) !== 'Remove Label: Web') throw new Error('after Delete on the last focus is on ' + (await focused()));
+			// Beside a link, focus goes to the next chip's remove button, not its link.
+			await page.getByRole('button', { name: 'Unlink Doc A' }).focus();
+			await page.keyboard.press('Space');
+			await wait(100);
+			if ((await focused()) !== 'Unlink Doc B') throw new Error('after unlinking, focus is on ' + (await focused()));
+		});
+		await c.step('a pointer removal leaves focus where it was', async () => {
+			await page.locator('#outside').focus();
+			await c.press(page.getByRole('button', { name: 'Remove Owner: Ada' }));
+			await wait(100);
+			if (await page.getByRole('button', { name: 'Remove Owner: Ada' }).count()) throw new Error('the chip stayed');
+			if ((await focused()) !== 'outside') throw new Error('focus moved to ' + (await focused()));
+		});
+		await c.step('ChipField: Enter adds the trimmed text, comma included; a repeat is not added', async () => {
+			await field.focus();
+			await page.keyboard.type('  Berlin, Germany  ');
+			await page.keyboard.press('Enter');
+			if (!(await state()).startsWith('value=["alpha","beta","Berlin, Germany"] ')) throw new Error(await state());
+			if ((await field.inputValue()) !== '' || !(await inField())) throw new Error('the field kept its text or lost focus');
+			await wait(50);
+			if ((await status.textContent()) !== 'Added Berlin, Germany') throw new Error('status: ' + (await status.textContent()));
+			await page.keyboard.type('alpha');
+			await page.keyboard.press('Enter');
+			await wait(50);
+			if (!(await state()).startsWith('value=["alpha","beta","Berlin, Germany"] ')) throw new Error('a repeat was added: ' + (await state()));
+			if ((await status.textContent()) !== 'alpha is already added') throw new Error('status: ' + (await status.textContent()));
+		});
+		await c.step('Chromium’s datalist triangle is hidden while suggestions remain', async () => {
+			const plain = await searchCancelDisplay(page, '#plain-list', '-webkit-calendar-picker-indicator');
+			if (plain === 'none' || plain === 'absent') throw new Error(`control: the plain field's triangle is ${plain}`);
+			const ours = await searchCancelDisplay(page, '#tags-field', '-webkit-calendar-picker-indicator');
+			if (ours !== 'none') throw new Error('the triangle shows: display ' + ours);
+		});
+		await c.step('suggestions: chosen ones leave the list; a pick adds at once; a pick right after Enter replaces the text', async () => {
+			const options = await page.locator('#tags-field-suggestions option').evaluateAll((o) => o.map((x) => x.value));
+			if (!same(options, ['gamma', 'delta'])) throw new Error('datalist: ' + JSON.stringify(options));
+			await field.evaluate((n) => {
+				n.value = 'gamma';
+				n.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' }));
+			});
+			await field.evaluate((n) => {
+				n.value = 'de';
+				n.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: 'de' }));
+			});
+			await field.evaluate((n) => {
+				n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+				n.value = 'delta';
+				n.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' }));
+			});
+			await wait(50);
+			const want = 'value=["alpha","beta","Berlin, Germany","gamma","delta"] ';
+			if (!(await state()).startsWith(want)) throw new Error(await state());
+			if ((await field.inputValue()) !== '') throw new Error('the field kept ' + (await field.inputValue()));
+		});
+		await c.step('every suggestion chosen: still a combobox with its list', async () => {
+			if ((await page.locator('#tags-field').getAttribute('list')) !== 'tags-field-suggestions') throw new Error('the field lost its list');
+			if (!(await field.count())) throw new Error('the field is no longer a combobox named Tags');
+		});
+		await c.step('Backspace in the empty field moves to the last remove button, not when held; again removes', async () => {
+			await field.focus();
+			await field.evaluate((n) => n.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', repeat: true, bubbles: true, cancelable: true })));
+			if (!(await inField())) throw new Error('a held Backspace left the field');
+			await page.keyboard.press('Backspace');
+			if ((await focused()) !== 'Remove delta') throw new Error('Backspace moved to ' + (await focused()));
+			await page.keyboard.press('Backspace');
+			await wait(100);
+			if (!(await state()).startsWith('value=["alpha","beta","Berlin, Germany","gamma"] ')) throw new Error(await state());
+			if ((await focused()) !== 'Remove gamma') throw new Error('after the removal focus is on ' + (await focused()));
+			if ((await status.textContent()) !== 'Removed delta') throw new Error('status: ' + (await status.textContent()));
+		});
+		await c.step('name posts each value; the typed text and a disabled field do not', async () => {
+			await field.focus();
+			await page.keyboard.type('unsent');
+			await c.press(page.getByRole('button', { name: 'Send', exact: true }));
+			await wait(100);
+			const posted = (await state()).split(' posted=')[1];
+			if (posted !== JSON.stringify({ tags: ['alpha', 'beta', 'Berlin, Germany', 'gamma'], frozen: [] })) throw new Error('posted ' + posted);
+		});
+		await c.step('removing the last chip by keys returns focus to the field', async () => {
+			await field.fill('');
+			for (let i = 0; i < 4; i++) {
+				await field.focus();
+				await page.keyboard.press('Backspace');
+				await page.keyboard.press('Enter');
+				await wait(100);
+			}
+			if (!(await state()).startsWith('value=[] ')) throw new Error(await state());
+			if (!(await inField())) throw new Error('focus is on ' + (await focused()));
+		});
+		await c.step('repeats show once; read-only and disabled chips have no remove button', async () => {
+			const repeats = await page.getByRole('list', { name: 'Repeats' }).getByRole('listitem').count();
+			if (repeats !== 2) throw new Error(`${repeats} chips for ["x","x","y"]`);
+			if (await page.getByRole('button', { name: /^Remove (x|y|one|two)$/ }).count()) throw new Error('a read-only or disabled chip has a remove button');
 		});
 	},
 
@@ -863,6 +1579,145 @@ const drivers = {
 		});
 	},
 
+	// Table's opt-in parts from the shipped package: a sortable header reports
+	// through bind:sort and carries aria-sort while the app reorders; a wide
+	// table scrolls inside a named region that takes focus, with a sticky
+	// first column, scroll edges and a row link across what shows; a row's
+	// detail opens with a fade and closes in the same frame; a column
+	// description opens from a named button; on the phone the stacked list
+	// sorts with a select and lists its field descriptions.
+	async table(c) {
+		const { page } = c;
+		const grid = page.getByRole('table', { name: 'Assets', exact: true });
+		const region = page.getByRole('region', { name: 'Assets', exact: true });
+		const state = async (sel) => (await page.locator(sel).textContent()).trim();
+		const sizes = () =>
+			grid.evaluate((t) => [...t.querySelectorAll(':scope > tbody > tr:not(.detail) > td:last-child')].map((td) => Number(td.textContent.trim())));
+		const sorted = (list, sign) => list.every((v, i) => i === 0 || sign * (v - list[i - 1]) >= 0);
+
+		await c.step('sortable header: a button, aria-sort on its th, bind:sort; the app reorders', async () => {
+			const size = grid.getByRole('button', { name: 'Size', exact: true });
+			const th = grid.locator('th').filter({ has: page.getByRole('button', { name: 'Size', exact: true }) });
+			if ((await grid.locator('th[aria-sort]').count()) !== 0) throw new Error('aria-sort before any sort');
+			await c.press(size);
+			await wait(100);
+			let s = await state('#wide-state');
+			if ((await th.getAttribute('aria-sort')) !== 'descending' || !s.startsWith('size descending')) throw new Error('first press (sortFirst descending): ' + s);
+			if (!sorted(await sizes(), -1)) throw new Error('rows not in descending order: ' + (await sizes()));
+			await c.press(size);
+			await wait(100);
+			s = await state('#wide-state');
+			if ((await th.getAttribute('aria-sort')) !== 'ascending' || !s.startsWith('size ascending')) throw new Error('second press: ' + s);
+			if (!sorted(await sizes(), 1)) throw new Error('rows not in ascending order: ' + (await sizes()));
+			if ((await grid.locator('th[aria-sort]').count()) !== 1) throw new Error('more than one th carries aria-sort');
+		});
+
+		await c.step('wide: a named region, focusable while it scrolls; keys scroll it; the first column stays; edges show', async () => {
+			await region.evaluate((n) => (n.scrollLeft = 0));
+			await wait(200);
+			const info = await region.evaluate((n) => ({ tabindex: n.getAttribute('tabindex'), sw: n.scrollWidth, cw: n.clientWidth }));
+			c.info(`region scrollWidth/clientWidth ${info.sw}/${info.cw}, tabindex ${info.tabindex}`);
+			if (info.sw <= info.cw) throw new Error('the wide table does not overflow its region');
+			if (info.tabindex !== '0') throw new Error('a scrolling region is not focusable');
+			const edges = () => region.evaluate((n) => [n.parentElement.hasAttribute('data-overflow-start'), n.parentElement.hasAttribute('data-overflow-end')]);
+			if (!same(await edges(), [false, true])) throw new Error('edges at the start: ' + (await edges()));
+			const first = grid.locator(':scope > tbody > tr:not(.detail)').first().locator('td').first();
+			const x0 = (await first.boundingBox()).x;
+			await region.focus();
+			for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+			await wait(400);
+			const left = await region.evaluate((n) => n.scrollLeft);
+			c.info('scrollLeft after ArrowRight x8: ' + left);
+			if (left <= 0) throw new Error('arrow keys did not scroll the region');
+			if (Math.abs((await first.boundingBox()).x - x0) > 0.5) throw new Error('the first column moved');
+			if (!(await edges())[0]) throw new Error('no start edge while scrolled');
+			await region.evaluate((n) => (n.scrollLeft = 0));
+			await wait(200);
+		});
+
+		await c.step('expand: aria-expanded and aria-controls, a nested Table, a fade on open, a cut on close; the row link covers the rest', async () => {
+			const button = grid.getByRole('button', { name: 'Details quarterly-report.pdf', exact: true });
+			if ((await button.getAttribute('aria-expanded')) !== 'false' || (await button.getAttribute('aria-controls')) !== null) throw new Error('closed button ARIA');
+			await recordEntrance(page, '.detail-body');
+			await c.press(button);
+			await wait(50);
+			if (await page.evaluate(() => location.hash) !== '#table') throw new Error('the expand button followed the row link');
+			const [expanded, controls] = await attrs(button, ['aria-expanded', 'aria-controls']);
+			if (expanded !== 'true' || !controls) throw new Error(`open button: expanded=${expanded} controls=${controls}`);
+			const panel = page.locator(`[id="${controls}"]`);
+			// The nested Table stacks on the phone, so its <table> is there but hidden.
+			await panel.locator('table[aria-label="Members of quarterly-report.pdf"]').waitFor({ state: 'attached', timeout: 2000 });
+			await wait(1500);
+			if (!(await page.evaluate(() => window.__entrance))) throw new Error('the detail did not fade in');
+			if (!(await state('#wide-state')).endsWith('| A-1')) throw new Error('bind:expanded: ' + (await state('#wide-state')));
+			await c.press(button);
+			if (await panel.count()) throw new Error('the detail stayed after closing');
+			if ((await button.getAttribute('aria-expanded')) !== 'false') throw new Error('aria-expanded after closing');
+			// The row link's cover lies over the other cells, so press the point, as a person would.
+			const owner = grid.locator(':scope > tbody > tr:not(.detail)').first().locator('td').nth(1);
+			const box = await owner.boundingBox();
+			const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+			if (c.touch) await page.touchscreen.tap(x, y);
+			else await page.mouse.click(x, y);
+			await wait(200);
+			const hash = await page.evaluate(() => location.hash);
+			await page.evaluate(() => history.replaceState(null, '', '#table'));
+			if (!hash.startsWith('#table-A-')) throw new Error('a press beside the first cell did not follow the row link: ' + hash);
+		});
+
+		await c.step('column description: a named button opens it in a popover or a sheet', async () => {
+			await c.press(grid.getByRole('button', { name: 'About Size', exact: true }));
+			const dialog = page.getByRole('dialog', { name: 'Size' });
+			await dialog.waitFor({ state: 'visible', timeout: 3000 });
+			if (!(await dialog.textContent()).includes('Size on disk in kilobytes')) throw new Error('the description is missing');
+			await page.keyboard.press('Escape');
+			await dialog.waitFor({ state: 'hidden', timeout: 3000 });
+		});
+
+		if (c.touch) {
+			const list = page.getByRole('list', { name: 'Stacked assets' });
+			await c.step('stacked list: the sort select sets bind:sort', async () => {
+				const select = page.getByLabel('Order', { exact: true });
+				if (!(await select.locator('option').allTextContents()).includes('Unsorted')) throw new Error('no unsorted choice before a sort');
+				await select.selectOption({ label: 'Size, descending' });
+				await wait(100);
+				if (!(await state('#stack-state')).startsWith('size descending')) throw new Error('select: ' + (await state('#stack-state')));
+				if ((await select.locator('option').allTextContents()).includes('Unsorted')) throw new Error('the unsorted choice stayed');
+			});
+			await c.step('stacked list: one button lists the stacked fields\' descriptions', async () => {
+				await c.press(page.getByRole('button', { name: 'Field notes' }));
+				const dialog = page.getByRole('dialog', { name: 'Field notes' });
+				await dialog.waitFor({ state: 'visible', timeout: 3000 });
+				if (!(await dialog.textContent()).includes('Size on disk in kilobytes')) throw new Error('the description is missing');
+				await page.keyboard.press('Escape');
+				await dialog.waitFor({ state: 'hidden', timeout: 3000 });
+			});
+			await c.step('stacked list: an item expands and collapses', async () => {
+				const button = list.getByRole('button', { name: /^Details / }).first();
+				await c.press(button);
+				await wait(200);
+				const controls = await button.getAttribute('aria-controls');
+				if ((await button.getAttribute('aria-expanded')) !== 'true' || !controls) throw new Error('open item button ARIA');
+				if (!(await page.locator(`[id="${controls}"]`).textContent()).includes('Stored at')) throw new Error('no detail');
+				await c.press(button);
+				await wait(100);
+				if (await page.locator(`[id="${controls}"]`).count()) throw new Error('the item detail stayed');
+			});
+			// Last: after an emulated swipe, Chromium drops the click of the next tap.
+			await c.step('wide: a swipe scrolls the region', async () => {
+				await region.evaluate((n) => (n.scrollLeft = 0));
+				await wait(200);
+				const box = await region.boundingBox();
+				const y = box.y + box.height / 2;
+				await c.swipe(box.x + box.width - 40, y, box.x + 60, y);
+				await wait(800);
+				const swiped = await region.evaluate((n) => n.scrollLeft);
+				c.info('scrollLeft after a swipe: ' + swiped);
+				if (swiped <= 0) throw new Error('a swipe did not scroll the region');
+			});
+		}
+	},
+
 	async expressive(c) {
 		const { page } = c;
 		await c.step('remount staggers (--i set while entering)', async () => {
@@ -908,6 +1763,202 @@ const drivers = {
 		});
 	},
 
+	// Section and Status: what only the shipped package proves (the compiled CSS in dist/, the
+	// context that <Motion paused> sets, the shipped types). Colours are compared with a token read
+	// through a probe element whose colour is set through the CSSOM, which the policy allows.
+	async section(c) {
+		const { page } = c;
+		const token = (name) =>
+			page.evaluate((t) => {
+				const s = document.createElement('span');
+				s.style.color = `var(${t})`;
+				document.body.append(s);
+				const v = getComputedStyle(s).color;
+				s.remove();
+				return v;
+			}, name);
+		await c.step('each section is a region named by its heading; titleAs, id and the title role', async () => {
+			const got = await page.evaluate(() =>
+				[...document.querySelectorAll('section.hp-section')].map((s) => {
+					const h = document.getElementById(s.getAttribute('aria-labelledby') || '');
+					return { id: s.id, name: h?.textContent, tag: h?.tagName, role: !!h?.classList.contains('hp-section-title'), size: h && getComputedStyle(h).fontSize };
+				})
+			);
+			const want = [
+				{ id: 'files', name: 'Files', tag: 'H2' },
+				{ id: '', name: 'Plan', tag: 'H3' },
+				{ id: '', name: 'A long title that needs more than one line in a narrow column', tag: 'H2' },
+				{ id: '', name: 'Notes', tag: 'H2' }
+			];
+			if (got.length !== want.length) throw new Error('sections: ' + JSON.stringify(got));
+			want.forEach((w, i) => {
+				const g = got[i];
+				if (g.id !== w.id || g.name !== w.name || g.tag !== w.tag || !g.role || g.size !== '20px') throw new Error(`section ${i}: ${JSON.stringify(g)}`);
+			});
+		});
+		await c.step('no frame, fill, rule or shadow on any part', async () => {
+			const bad = await page.evaluate(() =>
+				[...document.querySelectorAll('section.hp-section, section.hp-section > header, section.hp-section > footer, section.hp-section > div')].flatMap((n) => {
+					const s = getComputedStyle(n);
+					const sides = ['Top', 'Right', 'Bottom', 'Left'].some((k) => parseFloat(s['border' + k + 'Width']) > 0 && s['border' + k + 'Style'] !== 'none');
+					const out = [];
+					if (sides) out.push('border');
+					if (s.backgroundColor !== 'rgba(0, 0, 0, 0)') out.push('fill ' + s.backgroundColor);
+					if (s.boxShadow !== 'none') out.push('shadow');
+					if (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) out.push('outline');
+					return out.length ? [n.tagName + ': ' + out.join(', ')] : [];
+				})
+			);
+			if (bad.length) throw new Error(bad.join('; '));
+		});
+		await c.step('head row: meta after the title, actions at the end; 12px under the head, 48px between sections', async () => {
+			const g = await page.evaluate(() => {
+				const r = (n) => n.getBoundingClientRect();
+				const [s1, s2] = document.querySelectorAll('#wide > section');
+				const title = s1.querySelector('.hp-section-title');
+				const meta = s1.querySelector('.meta');
+				const actions = s1.querySelector('.actions');
+				return {
+					metaAfterTitle: r(meta).left >= r(title).right - 1 && Math.abs(r(meta).top + r(meta).height / 2 - (r(title).top + r(title).height / 2)) < 12,
+					actionsAtEnd: Math.abs(r(actions).right - r(s1).right) <= 1,
+					actionsOnRow: r(actions).top < r(title).bottom,
+					headToBody: Math.round(r(s1.querySelector('.body')).top - r(s1.querySelector('header')).bottom),
+					between: Math.round(r(s2).top - r(s1).bottom)
+				};
+			});
+			c.info('section head: ' + JSON.stringify(g));
+			if (!g.metaAfterTitle || !g.actionsAtEnd || !g.actionsOnRow) throw new Error('head layout: ' + JSON.stringify(g));
+			if (g.headToBody !== 12 || g.between < 2 * g.headToBody) throw new Error('spacing: ' + JSON.stringify(g));
+		});
+		await c.step('meta and foot are --muted; a Table in the body bleeds past the text edge', async () => {
+			const muted = await token('--muted');
+			const got = await page.evaluate(() => {
+				const s1 = document.querySelector('#wide > section');
+				const shown = [...s1.querySelectorAll('.hp-table .grid, .hp-table .stack')].find((n) => getComputedStyle(n).display !== 'none');
+				return {
+					meta: getComputedStyle(s1.querySelector('.meta')).color,
+					foot: getComputedStyle(s1.querySelector('footer')).color,
+					bleed: shown ? s1.getBoundingClientRect().left - shown.getBoundingClientRect().left : null,
+					footAfterBody: s1.querySelector('footer').getBoundingClientRect().top >= s1.querySelector('.body').getBoundingClientRect().bottom
+				};
+			});
+			if (got.meta !== muted || got.foot !== muted) throw new Error(`ink ${JSON.stringify(got)} vs ${muted}`);
+			if (!(got.bleed >= 8) || !got.footAfterBody) throw new Error('body: ' + JSON.stringify(got));
+		});
+		await c.step('narrow column: the head wraps; actions go under the title, beside a short meta or at the start of their own line under a long one; no overflow', async () => {
+			const g = await page.evaluate(() => {
+				const r = (n) => n.getBoundingClientRect();
+				const read = (s) => {
+					const title = s.querySelector('.hp-section-title');
+					const meta = s.querySelector('.meta');
+					const actions = s.querySelector('.actions');
+					return {
+						titleLines: Math.round(r(title).height / parseFloat(getComputedStyle(title).lineHeight)),
+						metaUnder: r(meta).top >= r(title).bottom - 1,
+						actionsUnder: r(actions).top >= r(title).bottom - 1,
+						actionsInside: r(actions).left >= r(s).left - 1 && r(actions).right <= r(s).right + 1,
+						actionsBelowMeta: r(actions).top >= r(meta).bottom - 1,
+						actionsAtStart: Math.abs(r(actions).left - r(s).left) <= 1
+					};
+				};
+				const [short, long] = document.querySelectorAll('#narrow > section');
+				return { short: read(short), long: read(long), overflow: document.scrollingElement.scrollWidth > innerWidth };
+			});
+			c.info('narrow head: ' + JSON.stringify(g));
+			const { short, long } = g;
+			if (short.titleLines < 2 || !short.metaUnder || !short.actionsUnder || !short.actionsInside || g.overflow) throw new Error('wrap, short meta: ' + JSON.stringify(g));
+			if (!long.metaUnder || !long.actionsBelowMeta || !long.actionsAtStart) throw new Error('wrap, long meta: ' + JSON.stringify(g));
+		});
+	},
+
+	async status(c) {
+		const { page } = c;
+		const token = (name) =>
+			page.evaluate((t) => {
+				const s = document.createElement('span');
+				s.style.color = `var(${t})`;
+				document.body.append(s);
+				const v = getComputedStyle(s).color;
+				s.remove();
+				return v;
+			}, name);
+		// Opacity of the mark of the first live status, sampled every frame for `ms`.
+		const sample = (ms) =>
+			page.evaluate(
+				(ms) =>
+					new Promise((resolve) => {
+						const mark = document.querySelector('#live .hp-status .mark');
+						const seen = [];
+						const start = performance.now();
+						const frame = () => {
+							seen.push(parseFloat(getComputedStyle(mark).opacity));
+							if (performance.now() - start < ms) requestAnimationFrame(frame);
+							else resolve({ min: Math.min(...seen), max: Math.max(...seen) });
+						};
+						requestAnimationFrame(frame);
+					}),
+				ms
+			);
+		const marks = () =>
+			page.evaluate(() =>
+				[...document.querySelectorAll('#live .hp-status, #nested .hp-status')].map((n) => {
+					const s = getComputedStyle(n.querySelector('.mark'));
+					return { live: n.hasAttribute('data-live'), paused: n.hasAttribute('data-paused'), animation: s.animationName, duration: s.animationDuration };
+				})
+			);
+		await c.step('tones: the mark takes the status hue, no tone takes --muted; the mark is hidden from assistive technology', async () => {
+			const want = [await token('--ok'), await token('--warn'), await token('--danger'), await token('--muted')];
+			const got = await page.evaluate(() =>
+				[...document.querySelectorAll('#static .hp-status')].map((n) => ({
+					bg: getComputedStyle(n.querySelector('.mark')).backgroundColor,
+					hidden: n.querySelector('.mark').getAttribute('aria-hidden'),
+					size: n.querySelector('.mark').getBoundingClientRect().width + 'x' + n.querySelector('.mark').getBoundingClientRect().height,
+					text: n.textContent.trim(),
+					live: n.hasAttribute('data-live') || n.hasAttribute('data-paused')
+				}))
+			);
+			if (got.map((g) => g.bg).join() !== want.join()) throw new Error(`marks ${got.map((g) => g.bg)} vs ${want}`);
+			if (got.some((g) => g.hidden !== 'true' || g.size !== '8x8' || g.live)) throw new Error('mark: ' + JSON.stringify(got));
+			if (got.map((g) => g.text).join() !== 'Online,Behind,Down,Idle') throw new Error('labels: ' + got.map((g) => g.text));
+		});
+		await c.step('live: the shipped CSS pulses opacity slowly (cycle of 2s or more, 0.4 at the low point)', async () => {
+			const [first] = await marks();
+			const s = parseFloat(first.duration) * (first.duration.endsWith('ms') ? 1 : 1000);
+			const seen = await sample(2600);
+			c.info(`live pulse: ${first.animation}, ${first.duration}, opacity ${seen.min.toFixed(2)} to ${seen.max.toFixed(2)}`);
+			if (first.animation === 'none' || !(s >= 2000)) throw new Error('no slow pulse: ' + JSON.stringify(first));
+			if (!(seen.min < 0.5 && seen.max > 0.95)) throw new Error('opacity did not cycle: ' + JSON.stringify(seen));
+		});
+		await c.step('<Motion paused> holds every live mark still and lit, a nested <Motion tier> inherits it', async () => {
+			await c.press(c.page.getByRole('button', { name: 'Pause animations' }));
+			await wait(150);
+			const all = await marks();
+			const seen = await sample(1200);
+			if (all.length !== 3 || all.some((m) => !m.live || !m.paused || m.animation !== 'none')) throw new Error('paused marks: ' + JSON.stringify(all));
+			if (seen.min !== 1 || seen.max !== 1) throw new Error('a paused mark moved: ' + JSON.stringify(seen));
+		});
+		await c.step('resuming starts the pulse again', async () => {
+			await c.press(c.page.getByRole('button', { name: 'Resume animations' }));
+			await wait(150);
+			const all = await marks();
+			const seen = await sample(2600);
+			if (all.some((m) => m.paused || m.animation === 'none')) throw new Error('resumed marks: ' + JSON.stringify(all));
+			if (!(seen.min < 0.5)) throw new Error('no pulse after resume: ' + JSON.stringify(seen));
+		});
+		await c.step('reduced motion stops the pulse with no help from the app', async () => {
+			await page.emulateMedia({ reducedMotion: 'reduce' });
+			try {
+				await wait(150);
+				const all = await marks();
+				const seen = await sample(1200);
+				if (all.some((m) => m.animation !== 'none')) throw new Error('animated under reduced motion: ' + JSON.stringify(all));
+				if (seen.min !== 1 || seen.max !== 1) throw new Error('a mark moved under reduced motion: ' + JSON.stringify(seen));
+			} finally {
+				await page.emulateMedia({ reducedMotion: 'no-preference' });
+			}
+		});
+	},
+
 	async meter(c) {
 		const { page } = c;
 		await c.step('thresholds cross live, tone changes', async () => {
@@ -921,6 +1972,121 @@ const drivers = {
 			c.info('tone as value crosses 30, 60, 90: ' + tones.join(', ') + ', then ' + (await page.evaluate(() => document.querySelector('.hp-meter')?.getAttribute('data-tone'))));
 			await c.press(page.getByRole('button', { name: 'Reset' }));
 			await wait(400);
+		});
+	},
+
+	async charts(c) {
+		const { page } = c;
+		const chart = page.locator('#stacked');
+		const plot = chart.locator('.hp-bar-chart-plot');
+		const readout = () => chart.locator('.hp-bar-chart-readout-label').textContent();
+		const active = () => chart.getAttribute('data-active');
+		// The middle of the third of twelve bars.
+		const third = async () => {
+			await plot.scrollIntoViewIfNeeded();
+			const box = await plot.boundingBox();
+			return [box.x + box.width * (2.5 / 12), box.y + box.height / 2];
+		};
+		const expect = async (what, label, index) => {
+			const [l, a] = [(await readout())?.trim(), await active()];
+			if (l !== label || a !== index) throw new Error(`${what}: readout ${l}, data-active ${a}; expected ${label}, ${index}`);
+		};
+		await c.step('category, ink and status colours come through the shipped CSS', async () => {
+			const paint = await page.evaluate(() => {
+				const root = getComputedStyle(document.documentElement);
+				const rgb = (token) => {
+					const n = root.getPropertyValue(token).trim().replace('#', '');
+					return `rgb(${[0, 2, 4].map((i) => parseInt(n.slice(i, i + 2), 16)).join(', ')})`;
+				};
+				const fill = (key) => {
+					const el = document.querySelector(`#stacked .hp-bar-chart-part[data-series="${key}"]`);
+					return el ? getComputedStyle(el).fill : null;
+				};
+				const swatch = document.querySelector('#stacked .hp-bar-chart-swatch');
+				return {
+					a: [fill('a'), rgb('--category-1')],
+					b: [fill('b'), rgb('--muted')],
+					c: [fill('c'), rgb('--danger')],
+					swatch: [swatch ? getComputedStyle(swatch).backgroundColor : null, rgb('--category-1')]
+				};
+			});
+			c.info('bar chart paint [computed, token]: ' + JSON.stringify(paint));
+			for (const [k, [got, want]] of Object.entries(paint)) if (got !== want) throw new Error(`${k}: ${got}, not ${want}`);
+		});
+		await c.step('at rest the readout shows the last bar, unmarked; the hidden table holds every bar', async () => {
+			await expect('at rest', 'Bar 12', null);
+			const rows = await chart.locator('table tbody tr').count();
+			const caption = (await chart.locator('table caption').textContent())?.trim();
+			if (rows !== 12 || caption !== 'Stacked bars') throw new Error(`table: ${rows} rows, caption ${caption}`);
+			const name = await plot.getAttribute('aria-label');
+			if (name !== 'Stacked bars') throw new Error('plot name: ' + name);
+		});
+		if (c.touch) {
+			await c.step('a tap shows and marks a bar; a tap outside lets it go', async () => {
+				const [x, y] = await third();
+				await page.touchscreen.tap(x, y);
+				await wait(100);
+				await expect('after a tap', 'Bar 3', '2');
+				await c.press(page.locator('#away'));
+				await wait(100);
+				await expect('after a tap outside', 'Bar 12', null);
+			});
+		} else {
+			await c.step('pointing shows and marks a bar; leaving lets it go', async () => {
+				const [x, y] = await third();
+				await page.mouse.move(x, y);
+				await wait(100);
+				await expect('pointing', 'Bar 3', '2');
+				await page.mouse.move(2, 2);
+				await wait(100);
+				await expect('after leaving', 'Bar 12', null);
+			});
+		}
+		await c.step('keys: one tab stop, arrows, Home and End move the mark; the status line says the bar', async () => {
+			await page.locator('#before').focus();
+			await page.keyboard.press('Tab');
+			if (!(await plot.evaluate((n) => n === document.activeElement))) throw new Error('Tab did not reach the plot');
+			await expect('keyboard focus', 'Bar 12', '11');
+			await page.keyboard.press('ArrowLeft');
+			await expect('ArrowLeft', 'Bar 11', '10');
+			const said = (await chart.locator('[role=status]').textContent())?.trim();
+			if (said !== 'Bar 11: Alpha 4, Beta 3, Gamma 0, Total 7') throw new Error('status line: ' + said);
+			await page.keyboard.press('Home');
+			await expect('Home', 'Bar 1', '0');
+			await page.keyboard.press('End');
+			await expect('End', 'Bar 12', '11');
+			await page.keyboard.press('Tab');
+			await expect('after Tab away', 'Bar 12', null);
+		});
+		await c.step('new data draws at once, with no animation', async () => {
+			await c.press(page.getByRole('button', { name: 'Shift' }));
+			await wait(50);
+			const running = await page.evaluate(
+				() => document.getAnimations().filter((a) => a.effect?.target?.closest?.('.hp-bar-chart')).length
+			);
+			if (running) throw new Error(`${running} animations in the chart`);
+			await expect('after new data', 'Bar 13', null);
+		});
+		await c.step('negative values draw below zero; an app class sets --bar-chart-height', async () => {
+			const low = page.locator('#negative');
+			const height = await low.locator('.hp-bar-chart-plot').evaluate((n) => n.getBoundingClientRect().height);
+			if (height !== 96) throw new Error('plot height ' + height);
+			const [up, down] = await low.locator('.hp-bar-chart-part').evaluateAll((ns) => ns.map((n) => [+n.getAttribute('y'), +n.getAttribute('height')]));
+			if (!(down[0] > up[0] + up[1])) throw new Error(`the negative bar is not below zero: ${JSON.stringify([up, down])}`);
+		});
+		await c.step('sparkline: the name says the last reading; an app class sets the size; the end stays square', async () => {
+			if ((await page.getByRole('img', { name: 'Trend: 6 units', exact: true }).count()) !== 1) throw new Error('no image named "Trend: 6 units"');
+			if ((await page.getByRole('img', { name: 'Failures: 5', exact: true }).count()) !== 1) throw new Error('no image named "Failures: 5"');
+			const box = await page.locator('#spark-tone').boundingBox();
+			const end = await page.locator('#spark-tone .hp-sparkline-end').boundingBox();
+			c.info(`sparkline ${box.width}x${box.height}, end ${end.width}x${end.height}`);
+			if (box.width !== 300 || box.height !== 48) throw new Error(`sparkline ${box.width}x${box.height}`);
+			if (end.width !== 6 || end.height !== 6) throw new Error(`end square ${end.width}x${end.height}`);
+			const [stroke, danger] = await page.locator('#spark-tone .hp-sparkline-line').evaluate((n) => {
+				const hex = getComputedStyle(document.documentElement).getPropertyValue('--danger').trim().replace('#', '');
+				return [getComputedStyle(n).stroke, `rgb(${[0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`];
+			});
+			if (stroke !== danger) throw new Error(`sparkline stroke ${stroke}, not --danger ${danger}`);
 		});
 	},
 

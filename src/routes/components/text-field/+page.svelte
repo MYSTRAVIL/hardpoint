@@ -42,6 +42,14 @@
 	let find = $state('');
 	let seats = $state('12');
 
+	// Numbers, dates and times: the value is a string for every type.
+	let seatCount = $state('12');
+	let weight = $state('2.5');
+	let offset = $state('-3');
+	let startDate = $state('2026-11-18');
+	let reminder = $state('09:15');
+	let pauseUntil = $state('');
+
 	// The find bar: the count and the current match follow the query.
 	const tasks = [
 		'Rotate the deploy keys',
@@ -99,11 +107,13 @@
 			</li>
 			<li>
 				<strong>Attributes.</strong> <code>type</code> is <code>text</code>, <code>email</code>,
-				<code>password</code>, <code>search</code>, <code>tel</code> or <code>url</code>. Set
+				<code>password</code>, <code>search</code>, <code>tel</code>, <code>url</code>,
+				<code>number</code>, <code>date</code>, <code>time</code> or <code>datetime-local</code>. Set
 				<code>inputmode</code>, <code>autocomplete</code> and <code>enterkeyhint</code> for the phone
-				keyboard; for numbers use <code>inputmode="numeric"</code>. These, <code>name</code>,
-				<code>required</code>, event handlers and <code>class</code> go to the
-				<code>&lt;input&gt;</code>. <code>bind:value</code> holds the text.
+				keyboard; a number field sets <code>inputmode</code> itself where it helps (see below). These,
+				<code>name</code>, <code>min</code>, <code>max</code>, <code>step</code>, <code>required</code>,
+				event handlers and <code>class</code> go to the <code>&lt;input&gt;</code>.
+				<code>bind:value</code> holds the text, a string for every type.
 			</li>
 			<li>
 				<strong>Search.</strong> With <code>type="search"</code> a clear button replaces the
@@ -273,6 +283,109 @@
 		</ul>
 	</section>
 
+	<section aria-labelledby="numbers">
+		<h2 id="numbers" class="hp-section-title">Numbers, dates and times</h2>
+		<p class="lede">
+			<code>type="number"</code>, <code>date</code>, <code>time</code> and <code>datetime-local</code> use
+			the browser's own entry and picker. The value is always a string, so one
+			<code>bind:value</code> works for every type: <code>'12.5'</code>, <code>'2026-11-18'</code>,
+			<code>'14:30'</code>, <code>'2026-11-18T14:30'</code>, and <code>''</code> while the box is empty or
+			incomplete. <code>min</code>, <code>max</code> and <code>step</code> go to the input.
+		</p>
+		<div class="form">
+			<TextField
+				label="Seats"
+				type="number"
+				min="1"
+				max="500"
+				step="1"
+				autocomplete="off"
+				enterkeyhint="next"
+				hint="Whole seats, 1 to 500. Shows a number pad on a phone."
+				bind:value={seatCount}
+			/>
+			<TextField
+				label="Weight limit (kg)"
+				type="number"
+				min="0"
+				step="0.5"
+				autocomplete="off"
+				enterkeyhint="next"
+				hint="A step of 0.5 gives the number pad a decimal point."
+				bind:value={weight}
+			/>
+			<TextField
+				label="Offset"
+				type="number"
+				step="1"
+				autocomplete="off"
+				enterkeyhint="next"
+				hint="Can be below zero, so the phone keeps its own keyboard, which has a minus key."
+				bind:value={offset}
+			/>
+			<TextField
+				label="Start date"
+				type="date"
+				min="2026-01-01"
+				max="2026-12-31"
+				hint="Within 2026."
+				bind:value={startDate}
+			/>
+			<TextField label="Reminder time" type="time" step="900" hint="In steps of 15 minutes." bind:value={reminder} />
+			<TextField
+				label="Pause until"
+				type="datetime-local"
+				hint="The task wakes at this local time."
+				bind:value={pauseUntil}
+			/>
+		</div>
+		<p class="value hp-caption">
+			<span class="hp-mono">seats = '{seatCount}'</span> ·
+			<span class="hp-mono">weight = '{weight}'</span> ·
+			<span class="hp-mono">offset = '{offset}'</span><br />
+			<span class="hp-mono">date = '{startDate}'</span> ·
+			<span class="hp-mono">time = '{reminder}'</span> ·
+			<span class="hp-mono">date and time = '{pauseUntil}'</span>
+		</p>
+		<ul class="notes">
+			<li>
+				<strong>Spin buttons.</strong> They are hidden on every browser and device. Chrome draws them narrower
+				than the 24px minimum target, in a colour no token sets; the arrow keys still step the value
+				by <code>step</code>, and the number pad fills it in.
+			</li>
+			<li>
+				<strong><code>inputmode</code>.</strong> A number field with <code>min</code> of 0 or more gets
+				<code>inputmode="numeric"</code> for a whole <code>step</code> (the default is 1) and
+				<code>decimal</code> for any other, because those pads can lack a minus key. Without <code>min</code>,
+				or with a negative one, the phone keeps its own keyboard. An <code>inputmode</code> you set wins.
+			</li>
+			<li>
+				<strong>Pickers.</strong> The browser's picker opens from the icon at the end of the box on a mouse and
+				from anywhere in the box on a phone. Its icon is drawn in the muted ink; the fields keep tabular
+				figures; the field being edited shows as a block in the text colour. The picker itself is the
+				browser's and follows the page's light or dark scheme.
+			</li>
+			<li>
+				<strong>Parsing.</strong> Read a number with <code>Number(value)</code> after checking the string is not
+				empty. The browser keeps <code>value</code> empty for an entry it cannot read, such as a lone minus
+				sign, so an empty string also means "not valid yet".
+			</li>
+		</ul>
+		<h3 class="hp-label sub">States</h3>
+		<div class="form">
+			<TextField
+				label="Seats"
+				type="number"
+				value="0"
+				min="1"
+				max="500"
+				error="Enter a whole number from 1 to 500."
+			/>
+			<TextField label="Start date" type="date" value="2026-11-18" disabled hint="Set when the task was created." />
+			<TextField label="Pause until" type="datetime-local" value="2026-11-18T09:30" readonly />
+		</div>
+	</section>
+
 	<section aria-labelledby="states">
 		<h2 id="states" class="hp-section-title">States</h2>
 		<p class="lede">
@@ -394,6 +507,11 @@
 	}
 	.find-list li[aria-current] {
 		box-shadow: inset 2px 0 var(--accent);
+	}
+
+	.sub {
+		margin: var(--space-8) 0 var(--space-4);
+		color: var(--muted);
 	}
 
 	.value {

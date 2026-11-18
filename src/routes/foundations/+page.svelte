@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	type Need = 'text' | 'boundary' | 'none';
+	type Need = 'text' | 'boundary' | 'graphic' | 'none';
 	const swatches: { token: string; role: string; need: Need }[] = [
 		{ token: '--canvas', role: 'Page, panels, idle wells', need: 'none' },
 		{ token: '--surface-hover', role: 'Hover, active and expanded regions', need: 'none' },
@@ -14,9 +14,14 @@
 		{ token: '--border-control', role: 'Boundaries of inputs, selects, outlined buttons', need: 'boundary' },
 		{ token: '--danger', role: 'Errors and failures, nothing else', need: 'text' },
 		{ token: '--warn', role: 'Waiting, blocked, needs you', need: 'text' },
-		{ token: '--ok', role: 'Done, success, online', need: 'text' }
+		{ token: '--ok', role: 'Done, success, online', need: 'text' },
+		{ token: '--category-1', role: 'Data category 1, teal', need: 'graphic' },
+		{ token: '--category-2', role: 'Data category 2, sky', need: 'graphic' },
+		{ token: '--category-3', role: 'Data category 3, blue', need: 'graphic' },
+		{ token: '--category-4', role: 'Data category 4, violet', need: 'graphic' },
+		{ token: '--category-5', role: 'Data category 5, magenta', need: 'graphic' }
 	];
-	const minimum: Record<Need, number> = { text: 4.5, boundary: 3, none: 0 };
+	const minimum: Record<Need, number> = { text: 4.5, boundary: 3, graphic: 3, none: 0 };
 
 	const roles = [
 		{ name: 'Label', cls: 'hp-label', use: 'Buttons, tabs, tags, column headers, field and key-value labels', sample: 'Status' },
@@ -168,8 +173,10 @@
 		<h2 id="colour" class="hp-section-title">Colour</h2>
 		<p class="lede">
 			Two inks on the canvas: black in the dark theme, warm paper in the light one. Titanium is the
-			accent; red, yellow and green mean status only. Ratios are measured on <code>--canvas</code> and on
-			<code>--surface-hover</code>.
+			accent; red, yellow and green mean status only. Five category hues mark data categories: chart
+			series, graph nodes, legends, a tag’s category edge. They are never controls or text, and always
+			come with a label or a legend; graphics need 3:1. Ratios are measured on <code>--canvas</code> and
+			on <code>--surface-hover</code>.
 		</p>
 		<div class="colour-rows" role="table" aria-label="Colour tokens">
 			<div class="colour-row head" role="row">

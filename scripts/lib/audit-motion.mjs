@@ -31,9 +31,10 @@
 //     They are judged by the duration their rule declares, because the browser shortens a transition
 //     that reverses midway. A colour fade on the trigger the pointer just left counts toward the next
 //     opening;
-//   the content of a disclosure (Disclosure's trigger carries .hp-disclosure-trigger): the open fade is
-//     --dur-expand, and closing is a cut, so no element animation may run on the way back. A disclosure
-//     is opened and closed by pressing its trigger again, not with Escape;
+//   the content of a disclosure (Disclosure's trigger carries .hp-disclosure-trigger, a Table row's
+//     expand button .hp-table-expand): the open fade is --dur-expand, and closing is a cut, so no element
+//     animation may run on the way back. A disclosure is opened and closed by pressing its trigger again,
+//     not with Escape;
 //   CSS animations: --dur-enter. Infinite ones (spinners) are left alone.
 // Opening, a toast's replacement and closing must each run at least one transition, an opened or replaced
 // element must end at opacity 1 with no transform, and under reduced motion nothing may change but opacity

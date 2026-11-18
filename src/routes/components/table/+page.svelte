@@ -3,7 +3,8 @@
 	import Button from '#lib/components/Button.svelte';
 	import NativeSelect from '#lib/components/NativeSelect.svelte';
 	import Pagination from '#lib/components/Pagination.svelte';
-	import Table, { type Column, type TableMark } from '#lib/components/Table.svelte';
+	import Table, { type Column, type TableMark, type TableSort } from '#lib/components/Table.svelte';
+	import Tag from '#lib/components/Tag.svelte';
 	import { Motion } from '#lib/motion/index.js';
 
 	type Sync = 'Synced' | 'Queued' | 'Failed' | 'Local only';
@@ -94,6 +95,125 @@
 	const shown = $derived(matching.slice((page - 1) * perPage, page * perPage));
 	const syncOptions = [{ value: 'all', label: 'All' }, ...syncs.map((s) => ({ value: s, label: s }))];
 
+	// ---- Sorting: the page orders all the rows, then pages them ----------
+
+	// Table reports the sort; it never reorders rows. A comparison for the
+	// demo: numbers by value, everything else by text.
+	const order = <T,>(list: T[], by: TableSort<T> | undefined) => {
+		if (!by) return list;
+		const sign = by.direction === 'ascending' ? 1 : -1;
+		return [...list].sort((a, b) => {
+			const x = a[by.key];
+			const y = b[by.key];
+			return sign * (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y)));
+		});
+	};
+
+	const sortableColumns: Column<FileRow>[] = [
+		{ key: 'name', label: 'Name', sortable: true },
+		{ key: 'owner', label: 'Owner', width: 'calc(14ch + var(--space-6))', hideBelow: 'expanded', sortable: true },
+		{ key: 'modified', label: 'Modified', width: 'calc(10ch + var(--space-10))', sortable: true, sortFirst: 'descending' },
+		{ key: 'size', label: 'Size', width: 'calc(8ch + var(--bleed) + var(--space-4))', numeric: true, sortable: true, sortFirst: 'descending' }
+	];
+	let fileSort = $state<TableSort<FileRow> | undefined>({ key: 'modified', direction: 'descending' });
+	let sortPage = $state(1);
+	const sortedLibrary = $derived(order(library, fileSort));
+	const sortedShown = $derived(sortedLibrary.slice((sortPage - 1) * perPage, sortPage * perPage));
+
+	// ---- Wide: a data grid that scrolls sideways ---------------------------
+
+	type Asset = FileRow & { team: string; labels: string[]; note: string; location: string };
+	const teams = ['Design', 'Engineering', 'Finance', 'Marketing', 'People'];
+	const labelSets = [['Draft'], ['Shared', 'Review'], [], ['Archived', 'Legal'], ['Review'], ['Draft', 'Shared', 'Legal'], ['Shared'], []];
+	const notes = [
+		'Final',
+		'Waiting for a second review before it goes out',
+		'Final',
+		'Kept for seven years, then deleted',
+		'Needs the new logo',
+		'Shared with the finance team for sign-off',
+		'Final',
+		'Replaced by the 2027 version'
+	];
+	const assets: Asset[] = files.map((file, i) => ({
+		...file,
+		team: teams[i % teams.length],
+		labels: labelSets[i],
+		note: notes[i],
+		location: `/shared/${teams[i % teams.length].toLowerCase()}/2026/q4/`
+	}));
+	const assetColumns: Column<Asset>[] = [
+		{ key: 'name', label: 'Name' },
+		{ key: 'owner', label: 'Owner' },
+		{ key: 'team', label: 'Team' },
+		{ key: 'labels', label: 'Labels' },
+		{ key: 'note', label: 'Note', width: '28ch' },
+		{ key: 'location', label: 'Location' },
+		{ key: 'modified', label: 'Modified' },
+		{ key: 'versions', label: 'Versions', numeric: true },
+		{ key: 'size', label: 'Size', numeric: true },
+		{ key: 'sync', label: 'Sync', mark: (f) => syncMark[f.sync] }
+	];
+
+	// ---- Expandable rows ----------------------------------------------------
+
+	type Member = { name: string; role: string; files: number; active: string };
+	const roster: Record<string, Member[]> = {
+		Design: [
+			{ name: 'Priya Nair', role: 'Lead', files: 512, active: '2026-11-08' },
+			{ name: 'Sam Okafor', role: 'Editor', files: 388, active: '2026-11-07' },
+			{ name: 'Lena Fischer', role: 'Viewer', files: 41, active: '2026-10-30' }
+		],
+		Engineering: [
+			{ name: 'Omar Haddad', role: 'Lead', files: 4102, active: '2026-11-08' },
+			{ name: 'Ingrid Berg', role: 'Editor', files: 3377, active: '2026-11-08' }
+		],
+		Finance: [{ name: 'Lena Fischer', role: 'Lead', files: 412, active: '2026-11-06' }],
+		Marketing: [
+			{ name: 'Sam Okafor', role: 'Lead', files: 1290, active: '2026-11-05' },
+			{ name: 'Priya Nair', role: 'Editor', files: 781, active: '2026-11-02' }
+		],
+		People: [{ name: 'Ingrid Berg', role: 'Lead', files: 318, active: '2026-11-01' }]
+	};
+	const memberColumns: Column<Member>[] = [
+		{ key: 'name', label: 'Member' },
+		{ key: 'role', label: 'Role', width: 'calc(8ch + var(--space-6))' },
+		{ key: 'files', label: 'Files', width: 'calc(8ch + var(--space-6))', numeric: true },
+		{ key: 'active', label: 'Last active', width: 'calc(11ch + var(--bleed))' }
+	];
+	let openTeams = $state<string[]>(['Design']);
+
+	// ---- Column descriptions ----------------------------------------------
+
+	const describedColumns: Column<Usage>[] = [
+		{ key: 'team', label: 'Team', sortable: true },
+		{
+			key: 'members',
+			label: 'Members',
+			width: 'calc(13ch + var(--space-6))',
+			numeric: true,
+			description: 'People who can open the team’s files today.'
+		},
+		{
+			key: 'storage',
+			label: 'Storage GB',
+			width: 'calc(16ch + var(--space-6))',
+			numeric: true,
+			sortable: true,
+			sortFirst: 'descending',
+			description: 'Space the team’s files take with all their older versions, in gigabytes.'
+		},
+		{
+			key: 'share',
+			label: 'Share %',
+			width: 'calc(13ch + var(--bleed))',
+			numeric: true,
+			description: 'The team’s part of all the storage in use.'
+		}
+	];
+	let usageSort = $state<TableSort<Usage>>();
+	const sortedUsage = $derived(order(usage, usageSort));
+
 	let demoPage = $state(4);
 </script>
 
@@ -110,6 +230,16 @@
 
 	{#snippet usageCell({ column, value }: { column: Column<Usage>; value: unknown })}
 		{column.key === 'storage' || column.key === 'share' ? (value as number).toFixed(1) : value}
+	{/snippet}
+
+	{#snippet assetCell({ row, column, value }: { row: Asset; column: Column<Asset>; value: unknown })}
+		{#if column.key === 'labels'}
+			<span class="tags">{#each row.labels as tag (tag)}<Tag as="span">{tag}</Tag>{/each}</span>
+		{:else if column.key === 'size'}
+			{formatSize(value as number)}
+		{:else}
+			{value}
+		{/if}
 	{/snippet}
 
 	<p class="intro">
@@ -144,6 +274,26 @@
 				<code>column</code> and <code>value</code>, in the table and the stacked list; without it a cell
 				shows its value. <code>empty</code> replaces the rows when there are none. <code>footer</code>
 				ends the footer row, beside the count from <code>total</code>.
+			</li>
+			<li>
+				<strong>Sorting.</strong> <code>sortable</code> on a column makes its label a button, and
+				<code>bind:sort</code> holds <code>{'{ key, direction }'}</code>. Table never reorders rows: the
+				page sorts them, then pages them, so paging and sorting on a server work the same way. Below
+				600px a sort select replaces the header buttons.
+			</li>
+			<li>
+				<strong>Wide.</strong> <code>wide</code> makes a data grid: values keep their width, the table
+				scrolls sideways inside its own region with the first column fixed, and it scrolls on phones
+				too instead of stacking.
+			</li>
+			<li>
+				<strong>Details.</strong> The <code>detail</code> snippet gives each row an expand button and
+				content under it, such as a nested table. <code>bind:expanded</code> holds the keys of the open
+				rows.
+			</li>
+			<li>
+				<strong>Descriptions.</strong> <code>description</code> on a column puts a button after its label
+				that shows what the column means.
 			</li>
 			<li>
 				<code>variant="ruled"</code> adds 1px dividers for long dense tables. The default,
@@ -281,6 +431,127 @@
 		</div>
 	</section>
 
+	<section aria-labelledby="sorting">
+		<h2 id="sorting" class="hp-section-title">Sorting</h2>
+		<p class="lede">
+			A <code>sortable</code> column’s label is a button. The first press sorts in the column’s
+			<code>sortFirst</code> order (ascending unless it says otherwise), and the next press reverses it.
+			The sorted column’s header carries <code>aria-sort</code> and one triangle pointing the order’s
+			way; the other sortable columns show a muted pair. Table only reports the sort through
+			<code>bind:sort</code>. This page sorts all 36 files, shows one page of them, and goes back to page 1
+			when the sort changes. Rows change place at once, with no motion.
+		</p>
+		<p class="hp-caption state sort-state">
+			sort = {fileSort ? `{ key: '${fileSort.key}', direction: '${fileSort.direction}' }` : 'undefined'}
+		</p>
+		<Table
+			label="Library files, sortable"
+			rows={sortedShown}
+			columns={sortableColumns}
+			key="id"
+			cell={fileCell}
+			stack={{ title: 'name', fields: ['modified', 'size'] }}
+			bind:sort={() => fileSort, (next) => {
+				fileSort = next;
+				sortPage = 1;
+			}}
+			total={library.length}
+		>
+			{#snippet footer()}
+				<Pagination bind:page={sortPage} count={library.length} {perPage} />
+			{/snippet}
+		</Table>
+		<p class="lede after">
+			Below 600px the headers are gone, so a sort select sits above the stacked list. It lists each
+			sortable column in both orders, the column’s first order first, and sets the same
+			<code>sort</code>. A page with its own sort control, or one that sorts by something that is not a
+			column, leaves the columns unsortable and keeps its control.
+		</p>
+	</section>
+
+	<section aria-labelledby="wide">
+		<h2 id="wide" class="hp-section-title">Wide tables</h2>
+		<p class="lede">
+			<code>wide</code> is for data grids whose columns matter together. Cells keep their natural width
+			and never truncate, so tags and several values fit. The table scrolls sideways inside a region
+			named by <code>label</code>; while it scrolls, the region takes focus and the arrow keys move it.
+			The first column stays in place. A 1px edge shows where columns go under it, and another where
+			more wait past the end. Below 600px it scrolls instead of stacking.
+		</p>
+		<Table
+			label="Assets"
+			rows={assets}
+			columns={assetColumns}
+			key="id"
+			wide
+			selected="F-03"
+			rowHref={() => '#wide'}
+			cell={assetCell}
+		/>
+		<p class="lede after">
+			A column without a <code>width</code> keeps its values on one line. Note has
+			<code>width: '28ch'</code>, so its values wrap inside it and their rows grow, with every value on
+			its first line. The first column takes at most half the region and wraps after that, so a phone
+			keeps room for the others. The band scrolls with the table and does not pin under the header,
+			because the region is its scroll container.
+		</p>
+	</section>
+
+	<section aria-labelledby="expandable">
+		<h2 id="expandable" class="hp-section-title">Expandable rows</h2>
+		<p class="lede">
+			The <code>detail</code> snippet gets each <code>row</code> and renders under it, across the table.
+			Each row starts with a button: the select chevron, named “Details” and the row’s title, with
+			<code>aria-expanded</code> and <code>aria-controls</code>. As on Disclosure, the height snaps open,
+			the content fades in over <code>--dur-expand</code>, and closing cuts. Here each team opens its
+			members in a nested table.
+		</p>
+		<p class="hp-caption state sort-state">expanded = [{openTeams.map((team) => `'${team}'`).join(', ')}]</p>
+		<Table
+			label="Teams"
+			rows={usage}
+			columns={usageColumns}
+			key="team"
+			cell={usageCell}
+			stack={{ title: 'team', fields: ['members', 'storage'] }}
+			rowHref={() => '#expandable'}
+			bind:expanded={openTeams}
+		>
+			{#snippet detail({ row })}
+				<Table label="Members of {row.team}" rows={roster[row.team]} columns={memberColumns} key="name" />
+			{/snippet}
+		</Table>
+		<p class="lede after">
+			These rows also link. The button sits above the row’s link: it opens the detail, and anywhere
+			else on the row follows the link. Below 600px the button ends the item’s title line and the detail
+			follows the item’s lines. A detail renders in the quiet tier, so a nested table never staggers
+			in, and a row that arrives already open, after a sort or on another page, shows its detail at once.
+		</p>
+	</section>
+
+	<section aria-labelledby="descriptions">
+		<h2 id="descriptions" class="hp-section-title">Column descriptions</h2>
+		<p class="lede">
+			<code>description</code> puts the square info mark after a column’s label. A press, a key or a tap
+			opens the text in a popover titled with the label (a sheet on phones), and a screen reader finds a
+			button named “About” and the label. A tooltip alone would leave touch out. In an end-aligned
+			column the mark comes before the label, so the label keeps the figures’ edge.
+		</p>
+		<Table
+			label="Storage by team, described"
+			rows={sortedUsage}
+			columns={describedColumns}
+			key="team"
+			cell={usageCell}
+			stack={{ title: 'team', fields: ['storage', 'share'] }}
+			bind:sort={usageSort}
+		/>
+		<p class="lede after">
+			Below 600px one button above the stacked list, “About the columns”, lists the descriptions of the
+			fields the list shows. Team and Storage GB sort too, so the sort select sits beside it.
+		</p>
+	</section>
+
 	<section aria-labelledby="expressive">
 		<h2 id="expressive" class="hp-section-title">Expressive entrance</h2>
 		<p class="lede">
@@ -327,7 +598,18 @@
 		<h2 id="labels" class="hp-section-title">Labels</h2>
 		<LabelsTable
 			rows={[
-				{ prop: 'totalLabel', value: 'Total', shows: 'The caps label before the count in the footer row, when total is set.' }
+				{ prop: 'totalLabel', value: 'Total', shows: 'The caps label before the count in the footer row, when total is set.' },
+				{ prop: 'sortLabel', value: 'Sort', shows: 'The caps label of the sort select above the stacked list.' },
+				{ prop: 'unsortedLabel', value: 'Unsorted', shows: 'The sort select’s choice while no sortable column orders the rows.' },
+				{ prop: 'ascendingLabel', value: 'ascending', shows: 'After a column label in the sort select: “Size, ascending”.' },
+				{ prop: 'descendingLabel', value: 'descending', shows: 'After a column label in the sort select: “Size, descending”.' },
+				{ prop: 'aboutLabel', value: 'About', shows: 'Before a column label in the name of its description button: “About Size”.' },
+				{
+					prop: 'aboutColumnsLabel',
+					value: 'About the columns',
+					shows: 'The button above the stacked list that lists the column descriptions, and the title of its sheet.'
+				},
+				{ prop: 'expandLabel', value: 'Details', shows: 'Before the row’s title in the name of its expand button: “Details Design”.' }
 			]}
 		/>
 	</section>
@@ -392,5 +674,14 @@
 		align-items: center;
 		gap: var(--space-4) var(--space-6);
 		margin-bottom: var(--space-6);
+	}
+
+	.sort-state {
+		margin-bottom: var(--space-3);
+		font-family: var(--mono);
+	}
+	.tags {
+		display: inline-flex;
+		gap: var(--space-1);
 	}
 </style>

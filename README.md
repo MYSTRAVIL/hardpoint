@@ -8,10 +8,10 @@ The package imports nothing from SvelteKit, so plain Svelte apps can use it. The
 
 ## Components
 
-- Actions and forms: `Button`, `TextField`, `TextArea`, `NativeSelect`, `Select`, `Combobox`, `Checkbox`, `CheckboxGroup`, `RadioGroup`, `Switch`.
-- Overlays: `Dialog` (centred, bottom sheet or full screen), `Popover`, `Menu` with `MenuItem`, `MenuCheckboxItem`, `MenuRadioGroup`, `MenuRadioItem`, `MenuGroup` and `MenuSeparator`, `Tooltip` with `TooltipGroup`, `Toaster` with `toast()`, and `ImageViewer` (one image full screen, with pinch zoom).
-- Navigation and layout: `AppShell` (header, bottom bar or drawer, rail or sidebar), `ListDetail` (a list beside the open item, one pane at a time on narrow screens), `Tabs`, `Steps`, `Pagination`.
-- Data and display: `Table`, `KeyValueList`, `Stat`, `Tag`, `Timeline`, `MediaFrame` with `MediaImage`, `Disclosure`, and `.hp-prose` in `base.css` for rendered markdown.
+- Actions and forms: `Button`, `TextField` (text, number, date and time types), `TextArea`, `NativeSelect`, `Select`, `Combobox`, `MultiSelect`, `ChipField`, `Checkbox`, `CheckboxGroup`, `RadioGroup`, `Switch`, `Slider`.
+- Overlays: `Dialog` (centred, bottom sheet or full screen), `Popover`, `Menu` with `MenuItem` (an action or a link), `MenuCheckboxItem`, `MenuRadioGroup`, `MenuRadioItem`, `MenuGroup` and `MenuSeparator`, `Tooltip` with `TooltipGroup`, `Toaster` with `toast()`, and `ImageViewer` (one image full screen, with pinch zoom).
+- Navigation and layout: `AppShell` (header, bottom bar or drawer, rail or sidebar), `ListDetail` (a list beside the open item, one pane at a time on narrow screens), `Section`, `Tabs`, `TabNav` (route tabs), `Steps`, `Pagination`.
+- Data and display: `Table` (sortable columns, wide scrolling grids, expandable rows), `KeyValueList`, `Stat`, `Tag`, `Chip`, `Status`, `Timeline`, `BarChart`, `Sparkline`, `MediaFrame` with `MediaImage`, `Disclosure`, and `.hp-prose` in `base.css` for rendered markdown. Five category colours (`--category-1` to `--category-5`) mark data categories in charts and legends.
 - Feedback: `Progress`, `Meter`, `Notice`, `Spinner`, `Skeleton`, `LoadRegion`, `EmptyState`, `ErrorState`.
 
 The source is on GitHub at [MYSTRAVIL/hardpoint](https://github.com/MYSTRAVIL/hardpoint), with a showcase app that has a docs page for each component, the foundations, the motion tokens and a specimen app.

@@ -82,6 +82,10 @@
 				heading, and <code>MenuSeparator</code> divides groups.
 			</li>
 			<li>
+				<code>href</code> on a <code>MenuItem</code> makes the row a link (see Links); <code>target</code>,
+				<code>rel</code> and <code>download</code> go with it.
+			</li>
+			<li>
 				<code>MenuCheckboxItem</code> binds <code>checked</code>; <code>MenuRadioGroup</code> binds
 				<code>value</code>, takes a <code>label</code> like a group and holds <code>MenuRadioItem</code>s. Give
 				them <code>closeOnSelect={'{false}'}</code> so the menu stays open and the change shows.
@@ -179,6 +183,30 @@
 			<p id="menu-document-action" class="hp-caption readout" aria-live="polite">
 				{#if documentAction}last action: <code>{documentAction}</code>{:else}No action yet.{/if}
 			</p>
+		</div>
+	</section>
+
+	<section aria-labelledby="links">
+		<h2 id="links" class="hp-section-title">Links</h2>
+		<p class="lede">
+			Give <code>MenuItem</code> an <code>href</code> and the row is a real link: an
+			<code>&lt;a href&gt;</code> that keeps the <code>menuitem</code> role. A press or
+			<kbd>Enter</kbd> follows it and closes the menu, so an app’s router sees an ordinary click on a link. Use it
+			for places to go: the pages of an app, an external address with <code>target="_blank"</code>, a file with
+			<code>download</code>. <kbd>Space</kbd> follows it too. A disabled link item has no address and does
+			nothing. On a phone the tap that opens the sheet never follows a link under the finger.
+		</p>
+		<div class="row">
+			<Menu label="Go to">
+				{#snippet trigger({ props })}
+					<Button {...props} opens>Go to</Button>
+				{/snippet}
+				<MenuItem href="/components/dialog">Dialog</MenuItem>
+				<MenuItem href="/components/popover">Popover</MenuItem>
+				<MenuItem href="/components/tooltip" disabled>Tooltip (not available)</MenuItem>
+				<MenuSeparator />
+				<MenuItem href="https://github.com/MYSTRAVIL/hardpoint" target="_blank" rel="noreferrer">Source on GitHub</MenuItem>
+			</Menu>
 		</div>
 	</section>
 

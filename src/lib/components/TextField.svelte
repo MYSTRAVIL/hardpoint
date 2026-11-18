@@ -1,8 +1,25 @@
 <script lang="ts" module>
 	import type { HTMLInputAttributes } from 'svelte/elements';
 
-	/** The text input types the well suits. For numbers use `text` with `inputmode="numeric"`. */
-	export type TextFieldType = 'text' | 'email' | 'password' | 'search' | 'tel' | 'url';
+	/**
+	 * The input types the well suits. `number`, `date`, `time` and
+	 * `datetime-local` use the browser's own controls and pickers, styled
+	 * from tokens: the number's spin buttons are hidden (the arrow keys still
+	 * step it) and the pickers' icon is drawn in `--muted`. Set `min`, `max`
+	 * and `step` as on a native input. The type of `value` is the same for
+	 * all of them; see `TextFieldProps.value`.
+	 */
+	export type TextFieldType =
+		| 'text'
+		| 'email'
+		| 'password'
+		| 'search'
+		| 'tel'
+		| 'url'
+		| 'number'
+		| 'date'
+		| 'time'
+		| 'datetime-local';
 
 	/** From which width the label sits beside the well: 600px, 900px or 1200px. */
 	export type TextFieldBreakpoint = 'medium' | 'expanded' | 'large';
@@ -14,7 +31,13 @@
 		 * `labelHidden`: a placeholder is never the only label.
 		 */
 		label: string;
-		/** The text. Bindable. */
+		/**
+		 * The text. Bindable. Always a string, for every `type`: the string
+		 * the browser holds, so `'12.5'` for a number (parse it with
+		 * `Number(value)`), `'2026-11-18'` for a date, `'14:30'` for a time,
+		 * `'2026-11-18T14:30'` for a date and time, and `''` while the box is
+		 * empty or holds an incomplete or invalid entry.
+		 */
 		value?: string;
 		type?: TextFieldType;
 		/** Guidance under the well in `--muted`, linked by `aria-describedby`. */
@@ -71,6 +94,8 @@
 		class: className,
 		'aria-describedby': describedBy,
 		'aria-invalid': ariaInvalid,
+		inputmode: inputmodeProp,
+		oninput: onInput,
 		...rest
 	}: TextFieldProps = $props();
 
@@ -118,6 +143,45 @@
 		ref.dispatchEvent(new Event('input', { bubbles: true }));
 		ref.focus();
 	}
+
+	// ---- Number, date and time ------------------------------------------
+
+	// `bind:value` on a number input would hand the app a number or null, and
+	// would reset the box while "1." is typed. The field's value is one type
+	// for every kind of input, the string the browser holds ('12.5',
+	// '2026-11-18', '14:30', '2026-11-18T14:30', and '' while empty or
+	// incomplete), so a number input is written to by hand: the typed text
+	// goes to `value`, and `value` goes back to the box only when the app
+	// changed it (the box then differs from it; typing never does).
+	function typed(event: Parameters<NonNullable<TextFieldProps['oninput']>>[0]) {
+		value = event.currentTarget.value;
+		onInput?.(event);
+	}
+	$effect(() => {
+		const next = value;
+		if (type === 'number' && ref && ref.value !== next) ref.value = next;
+	});
+	// A form's reset puts the box back to its default; `bind:value` hears that
+	// itself, this hears it for the hand-written number box.
+	$effect(() => {
+		const form = type === 'number' ? ref?.form : null;
+		if (!form) return;
+		const reset = () => setTimeout(() => ref && (value = ref.value));
+		form.addEventListener('reset', reset);
+		return () => form.removeEventListener('reset', reset);
+	});
+
+	// A phone's number pad. A number box with no `inputmode` shows the
+	// browser's own keyboard, which has a minus key. `numeric` and
+	// `decimal` pads can lack one, so they are set only where nothing below zero
+	// is allowed (`min` of 0 or more), and then by the step: a whole step is
+	// `numeric`, any other is `decimal`. The app's own `inputmode` always wins.
+	const inputmode = $derived.by(() => {
+		if (inputmodeProp) return inputmodeProp;
+		if (type !== 'number' || rest.min === undefined || !(Number(rest.min) >= 0)) return undefined;
+		const step = rest.step === undefined || rest.step === 'any' ? 1 : Number(rest.step);
+		return rest.step === 'any' || !Number.isInteger(step) ? 'decimal' : 'numeric';
+	});
 </script>
 
 <!--
@@ -126,7 +190,8 @@
 	attributes (`name`, `inputmode`, `autocomplete`, `enterkeyhint`,
 	`required`), handlers and `class` go to the <input>. With
 	`type="search"` the well holds a clear button at its end while it has
-	text.
+	text. The number, date and time types keep the browser's own controls,
+	styled from tokens; `value` is always the string the browser holds.
 -->
 <div
 	bind:this={root}
@@ -141,18 +206,39 @@
 		{/snippet}
 	</Label.Root>
 	{#snippet well()}
-		<input
-			{...rest}
-			bind:this={ref}
-			bind:value
-			{id}
-			{type}
-			{disabled}
-			{readonly}
-			class={['hp-well', className]}
-			aria-describedby={describedByIds}
-			aria-invalid={error ? true : ariaInvalid}
-		/>
+		{#if type === 'number'}
+			<!-- Not bound: Svelte's `bind:value` turns a number input's text into a
+			     number, and the field's value is always the string the browser
+			     holds. -->
+			<input
+				{...rest}
+				bind:this={ref}
+				oninput={typed}
+				{id}
+				{type}
+				{inputmode}
+				{disabled}
+				{readonly}
+				class={['hp-well', className]}
+				aria-describedby={describedByIds}
+				aria-invalid={error ? true : ariaInvalid}
+			/>
+		{:else}
+			<input
+				{...rest}
+				bind:this={ref}
+				bind:value
+				oninput={onInput}
+				{id}
+				{type}
+				{inputmode}
+				{disabled}
+				{readonly}
+				class={['hp-well', className]}
+				aria-describedby={describedByIds}
+				aria-invalid={error ? true : ariaInvalid}
+			/>
+		{/if}
 	{/snippet}
 	{#if clearable}
 		<div class="search">
@@ -214,6 +300,88 @@
 	input::placeholder {
 		color: var(--muted);
 		opacity: 1;
+	}
+
+	/* ---- Number, date and time: the browser's own controls, from tokens -- */
+
+	/* Figures line up in a column of fields; the native widgets take the
+	   titanium accent where they draw one. */
+	input[type='number'],
+	input[type='date'],
+	input[type='time'],
+	input[type='datetime-local'] {
+		font-variant-numeric: tabular-nums;
+		accent-color: var(--accent);
+	}
+
+	/* The spin buttons are hidden everywhere. Chrome draws them 15px wide
+	   whatever the well, in a colour a token cannot set, and a touch screen
+	   has no use for them; the arrow keys still step the value by `step`
+	   and the number pad (`inputmode`) fills it in. */
+	input[type='number'] {
+		appearance: textfield;
+		-moz-appearance: textfield;
+	}
+	input[type='number']::-webkit-inner-spin-button,
+	input[type='number']::-webkit-outer-spin-button {
+		appearance: none;
+		margin: 0;
+	}
+
+	/* The picker icon is drawn from the muted token: the browser's image is
+	   replaced by a mask, so one rule colours it in both themes. It is a
+	   24px square on a fine pointer; on touch the whole box opens the
+	   picker. A disabled or read-only box has no picker to open. */
+	input[type='date'],
+	input[type='datetime-local'] {
+		--picker-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 3.5h11v10h-11zM2.5 6.5h11M5.5 1.5v3M10.5 1.5v3' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+	}
+	input[type='time'] {
+		--picker-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 2.5h11v11h-11zM8 5v3.5L10.5 10' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
+	}
+	input::-webkit-calendar-picker-indicator {
+		box-sizing: content-box;
+		width: var(--space-4);
+		height: var(--space-4);
+		margin: 0 calc(-1 * var(--space-1)) 0 var(--space-2);
+		padding: var(--space-1);
+		background: var(--muted);
+		-webkit-mask: var(--picker-icon) center / 16px 16px no-repeat;
+		mask: var(--picker-icon) center / 16px 16px no-repeat;
+		opacity: 1;
+		cursor: pointer;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		input::-webkit-calendar-picker-indicator:hover {
+			background: var(--text);
+		}
+	}
+	input:is(:disabled, [readonly])::-webkit-calendar-picker-indicator {
+		display: none;
+	}
+	/* WebKit on iOS centres the value of an empty date box and collapses it;
+	   the value starts at the start edge like any text. */
+	input::-webkit-date-and-time-value {
+		text-align: start;
+	}
+	/* The separators are --muted, so the fields read as the entry. The field
+	   being edited is a --text block, as selected text is, where Chrome
+	   would draw its system highlight colour. (:focus-within, not :focus:
+	   Chrome matches only that one after its own pseudo-elements.) */
+	input::-webkit-datetime-edit-text {
+		color: var(--muted);
+	}
+	input::-webkit-datetime-edit-month-field:focus-within,
+	input::-webkit-datetime-edit-day-field:focus-within,
+	input::-webkit-datetime-edit-year-field:focus-within,
+	input::-webkit-datetime-edit-hour-field:focus-within,
+	input::-webkit-datetime-edit-minute-field:focus-within,
+	input::-webkit-datetime-edit-second-field:focus-within,
+	input::-webkit-datetime-edit-millisecond-field:focus-within,
+	input::-webkit-datetime-edit-ampm-field:focus-within {
+		background: var(--text);
+		color: var(--canvas);
+		outline: none;
 	}
 
 	/* ---- Search: the clear button replaces the browser's own --------- */
