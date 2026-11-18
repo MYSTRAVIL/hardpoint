@@ -87,6 +87,9 @@
 
 <main class="page">
 	<p id="wide-state">{wideSort ? `${wideSort.key} ${wideSort.direction}` : 'none'} | {wideOpen.join(',')}</p>
+	<!-- A frame narrower than the grid, so it overflows on every platform's
+	     font metrics (Linux CI measured it just fitting a 1408px page). -->
+	<div class="wide-frame">
 	<Table
 		label="Assets"
 		rows={wideRows}
@@ -109,6 +112,7 @@
 			<Table label="Members of {row.name}" rows={members} columns={memberColumns} key="name" />
 		{/snippet}
 	</Table>
+	</div>
 
 	<p id="stack-state">{stackSort ? `${stackSort.key} ${stackSort.direction}` : 'none'} | {stackOpen.join(',')}</p>
 	<Table

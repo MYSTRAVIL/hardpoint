@@ -84,3 +84,8 @@ own-row {
 .wide-rail {
 	--rail-width: 128px;
 }
+
+/* The wide Table's frame: narrower than its grid on every platform. */
+.wide-frame {
+	max-width: 48rem;
+}
