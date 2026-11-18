@@ -2,6 +2,13 @@
 	import { Slider as BitsSlider } from 'bits-ui';
 
 	/**
+	 * Where the label sits: above the track by default; `true` puts it
+	 * beside the track at every width, a breakpoint from that width up
+	 * (600px, 900px or 1200px).
+	 */
+	export type SliderLabelBeside = boolean | 'medium' | 'expanded' | 'large';
+
+	/**
 	 * Bits UI's single-value Slider root props, minus what this component
 	 * sets itself. Attributes, `id` and handlers not listed here go to the
 	 * track area (the Bits UI root, `.hp-slider-control`); `class` goes to the
@@ -14,7 +21,8 @@
 	> & {
 		/**
 		 * The caps label above the track. A short fixed string the app
-		 * defines. It names the slider for assistive technology.
+		 * defines. It names the slider for assistive technology, also with
+		 * `labelHidden`.
 		 */
 		label: string;
 		/** The chosen number. Bindable; it stays inside `min` and `max` and on a `step`. */
@@ -42,6 +50,19 @@
 		valueText?: (value: number) => string;
 		/** Guidance under the track in `--muted`, linked by `aria-describedby`. */
 		hint?: string;
+		/**
+		 * The label sits above the track, with the value at the end of its
+		 * line, by default. `true` puts the label, the track and the value on
+		 * one row at every width; a breakpoint does so from that width up. The
+		 * hint stays under the track.
+		 */
+		labelBeside?: SliderLabelBeside;
+		/**
+		 * Hides the label from sight; it stays the slider's accessible name.
+		 * For a slider whose purpose its place makes plain. The track and the
+		 * value share one row. It overrides `labelBeside`.
+		 */
+		labelHidden?: boolean;
 		/** The outer element's classes (width, margin). */
 		class?: string;
 		/** The track area, for example to measure it. Bindable. */
@@ -59,6 +80,8 @@
 		format = String,
 		valueText,
 		hint,
+		labelBeside = false,
+		labelHidden = false,
 		disabled = false,
 		class: className,
 		ref = $bindable(null),
@@ -72,6 +95,10 @@
 	// The value as the control holds it: Bits UI starts an unset value at
 	// `min` and snaps a stray one to a step.
 	const shown = $derived(value ?? min);
+
+	// On one row the value reserves the width of both ends, drawn hidden in
+	// the same grid cell, so the track keeps its length while the value moves.
+	const row = $derived(labelHidden || labelBeside !== false);
 </script>
 
 <!--
@@ -83,10 +110,17 @@
 	The label line names the thumb through `aria-labelledby`. The track is the
 	root's `::before`, so a press on it is a press on the root.
 -->
-<div class={['hp-slider', className]} data-disabled={disabled ? '' : undefined}>
+<div
+	class={['hp-slider', className]}
+	data-disabled={disabled ? '' : undefined}
+	data-label-beside={labelHidden ? undefined : labelBeside === true ? 'always' : labelBeside || undefined}
+	data-label-hidden={labelHidden ? '' : undefined}
+>
 	<div class="hp-slider-line">
-		<span id={labelId} class="hp-slider-label hp-label">{label}</span>
-		<span class="hp-slider-value">{format(shown)}</span>
+		<span id={labelId} class={['hp-slider-label', 'hp-label', labelHidden && 'hp-visually-hidden']}>{label}</span>
+		<span class="hp-slider-value" data-min={row ? format(min) : undefined} data-max={row ? format(max) : undefined}
+			><span>{format(shown)}</span></span
+		>
 	</div>
 	<BitsSlider.Root
 		type="single"
@@ -236,5 +270,153 @@
 	.hp-slider-hint {
 		margin: 0;
 		color: var(--muted);
+	}
+
+	/* One row: the label, the track and the value; the hint under the track.
+	   The row is at least one control high, so it lines up with fields whose
+	   label sits beside their well. The line around the label and the value
+	   gives way, so both become grid items. */
+	[data-label-beside='always'] {
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		grid-template-rows: minmax(var(--control-height), auto);
+		column-gap: var(--space-2);
+		align-items: center;
+	}
+	[data-label-beside='always'] .hp-slider-line {
+		display: contents;
+	}
+	[data-label-beside='always'] .hp-slider-label {
+		grid-area: 1 / 1;
+		white-space: nowrap;
+	}
+	[data-label-beside='always'] .hp-slider-control {
+		grid-area: 1 / 2;
+	}
+	[data-label-beside='always'] .hp-slider-value {
+		grid-area: 1 / 3;
+		padding-inline-start: var(--space-1);
+	}
+	[data-label-beside='always'] .hp-slider-hint {
+		grid-area: 2 / 2;
+	}
+	@media (min-width: 600px) {
+		[data-label-beside='medium'] {
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			grid-template-rows: minmax(var(--control-height), auto);
+			column-gap: var(--space-2);
+			align-items: center;
+		}
+		[data-label-beside='medium'] .hp-slider-line {
+			display: contents;
+		}
+		[data-label-beside='medium'] .hp-slider-label {
+			grid-area: 1 / 1;
+			white-space: nowrap;
+		}
+		[data-label-beside='medium'] .hp-slider-control {
+			grid-area: 1 / 2;
+		}
+		[data-label-beside='medium'] .hp-slider-value {
+			grid-area: 1 / 3;
+			padding-inline-start: var(--space-1);
+		}
+		[data-label-beside='medium'] .hp-slider-hint {
+			grid-area: 2 / 2;
+		}
+	}
+	@media (min-width: 900px) {
+		[data-label-beside='expanded'] {
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			grid-template-rows: minmax(var(--control-height), auto);
+			column-gap: var(--space-2);
+			align-items: center;
+		}
+		[data-label-beside='expanded'] .hp-slider-line {
+			display: contents;
+		}
+		[data-label-beside='expanded'] .hp-slider-label {
+			grid-area: 1 / 1;
+			white-space: nowrap;
+		}
+		[data-label-beside='expanded'] .hp-slider-control {
+			grid-area: 1 / 2;
+		}
+		[data-label-beside='expanded'] .hp-slider-value {
+			grid-area: 1 / 3;
+			padding-inline-start: var(--space-1);
+		}
+		[data-label-beside='expanded'] .hp-slider-hint {
+			grid-area: 2 / 2;
+		}
+	}
+	@media (min-width: 1200px) {
+		[data-label-beside='large'] {
+			grid-template-columns: auto minmax(0, 1fr) auto;
+			grid-template-rows: minmax(var(--control-height), auto);
+			column-gap: var(--space-2);
+			align-items: center;
+		}
+		[data-label-beside='large'] .hp-slider-line {
+			display: contents;
+		}
+		[data-label-beside='large'] .hp-slider-label {
+			grid-area: 1 / 1;
+			white-space: nowrap;
+		}
+		[data-label-beside='large'] .hp-slider-control {
+			grid-area: 1 / 2;
+		}
+		[data-label-beside='large'] .hp-slider-value {
+			grid-area: 1 / 3;
+			padding-inline-start: var(--space-1);
+		}
+		[data-label-beside='large'] .hp-slider-hint {
+			grid-area: 2 / 2;
+		}
+	}
+
+	/* Hidden label: the track and the value on one row. The label is out of
+	   the flow (visually hidden) and still names the thumb. */
+	[data-label-hidden] {
+		grid-template-columns: minmax(0, 1fr) auto;
+		grid-template-rows: minmax(var(--control-height), auto);
+		column-gap: var(--space-2);
+		align-items: center;
+	}
+	[data-label-hidden] .hp-slider-line {
+		display: contents;
+	}
+	[data-label-hidden] .hp-slider-control {
+		grid-area: 1 / 1;
+	}
+	[data-label-hidden] .hp-slider-value {
+		grid-area: 1 / 2;
+		padding-inline-start: var(--space-1);
+	}
+	[data-label-hidden] .hp-slider-hint {
+		grid-area: 2 / 1;
+	}
+
+	/* The value's width on one row: both ends, drawn hidden in the same grid
+	   cell as the shown value, so the cell is as wide as the widest of the
+	   three and the track keeps its length. The shown value sits at the
+	   cell's end. Pseudo-elements keep the ends out of the text and, hidden,
+	   out of the accessibility tree. */
+	.hp-slider-value[data-min] {
+		display: inline-grid;
+		justify-items: end;
+	}
+	.hp-slider-value[data-min] > span,
+	.hp-slider-value[data-min]::before,
+	.hp-slider-value[data-min]::after {
+		grid-area: 1 / 1;
+	}
+	.hp-slider-value[data-min]::before {
+		content: attr(data-min);
+		visibility: hidden;
+	}
+	.hp-slider-value[data-min]::after {
+		content: attr(data-max);
+		visibility: hidden;
 	}
 </style>

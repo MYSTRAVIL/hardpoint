@@ -792,7 +792,7 @@ const drivers = {
 			if (text[0] !== 'Level 3 of 10') throw new Error('valueText: ' + JSON.stringify(text));
 			const described = await thumb.evaluate((n) => document.getElementById(n.getAttribute('aria-describedby') ?? '')?.textContent);
 			if (described !== 'How much of the image shows.') throw new Error('hint is not the description: ' + described);
-			const shown = await page.locator('.hp-slider-value').allTextContents();
+			const shown = (await page.locator('.hp-slider-value').allTextContents()).slice(0, 4);
 			if (shown.join('|') !== '60%|0.40|3|20%') throw new Error('shown values ' + shown.join('|'));
 		});
 		await c.step('the thumb and the range sit where Bits UI puts them (CSSOM styles under the policy)', async () => {
@@ -888,6 +888,44 @@ const drivers = {
 			else await page.mouse.click(control.x + control.width * 0.9, y);
 			await wait(100);
 			if ((await now('Locked')) !== 20) throw new Error('a disabled slider changed to ' + (await now('Locked')));
+		});
+		await c.step('label beside: label, track and value on one row, a control high, the value width held', async () => {
+			const root = page.locator('.hp-slider', { has: field('Min score') });
+			const label = await root.locator('.hp-slider-label').boundingBox();
+			const control = await box('Min score').boundingBox();
+			const value = await root.locator('.hp-slider-value').boundingBox();
+			const row = await root.boundingBox();
+			const mid = (b) => b.y + b.height / 2;
+			if (Math.abs(mid(label) - mid(control)) > 2 || Math.abs(mid(value) - mid(control)) > 2) {
+				throw new Error(`not one row: label ${mid(label)}, control ${mid(control)}, value ${mid(value)}`);
+			}
+			if (!(label.x + label.width <= control.x && control.x + control.width <= value.x)) throw new Error('order is not label, track, value');
+			const controlHeight = c.touch ? 44 : 36;
+			if (row.height < controlHeight - 0.5) throw new Error('row is ' + row.height + 'px high');
+			const well = await page.getByRole('spinbutton', { name: 'Min count', exact: true }).boundingBox();
+			if (Math.abs(well.y - row.y) < 1 && Math.abs(mid(well) - mid(control)) > 2) throw new Error(`well centre ${mid(well)}, slider centre ${mid(control)}`);
+			c.info(`beside: row ${row.width}x${row.height}, value ${value.width}px`);
+			const before = control.width;
+			await field('Min score').focus();
+			await page.keyboard.press('Home');
+			await page.keyboard.press('End');
+			if ((await box('Min score').boundingBox()).width !== before) throw new Error('the track changed length with the value');
+		});
+		await c.step('label hidden: no visible label, the name stays, track and value on one row', async () => {
+			const thumb = field('Zoom');
+			if ((await thumb.count()) !== 1) throw new Error('no slider named Zoom');
+			const root = page.locator('.hp-slider', { has: thumb });
+			const label = await root.locator('.hp-slider-label').boundingBox();
+			if (label && label.width > 1) throw new Error('the hidden label is ' + label.width + 'px wide');
+			const control = await box('Zoom').boundingBox();
+			const value = await root.locator('.hp-slider-value').boundingBox();
+			if (Math.abs(value.y + value.height / 2 - (control.y + control.height / 2)) > 2) throw new Error('value is not beside the track');
+			const before = control.width;
+			await thumb.focus();
+			await page.keyboard.press('Home');
+			const shown = await root.locator('.hp-slider-value').textContent();
+			if (shown !== '50%') throw new Error('shown ' + shown);
+			if ((await box('Zoom').boundingBox()).width !== before) throw new Error('the track changed length with the value');
 		});
 	},
 
@@ -1300,6 +1338,38 @@ const drivers = {
 			const repeats = await page.getByRole('list', { name: 'Repeats' }).getByRole('listitem').count();
 			if (repeats !== 2) throw new Error(`${repeats} chips for ["x","x","y"]`);
 			if (await page.getByRole('button', { name: /^Remove (x|y|one|two)$/ }).count()) throw new Error('a read-only or disabled chip has a remove button');
+		});
+		await c.step('action chip: a button with the value as written, applied by a press and by keys, remove beside it', async () => {
+			const list = page.getByRole('list', { name: 'Saved views', exact: true });
+			const views = () => page.locator('#views-state').textContent();
+			const action = list.getByRole('button', { name: 'design reviews (old)', exact: true });
+			const shape = await action.evaluate((n) => ({
+				tag: n.tagName,
+				type: n.getAttribute('type'),
+				transform: getComputedStyle(n).textTransform,
+				nested: !!n.querySelector('button, a'),
+				root: n.closest('.hp-chip')?.hasAttribute('data-action')
+			}));
+			if (!same([shape.tag, shape.type, shape.transform, shape.nested, shape.root], ['BUTTON', 'button', 'none', false, true])) throw new Error('action body: ' + JSON.stringify(shape));
+			if ((await misses(action)) > 0) throw new Error('the action is not a full target');
+			if (c.touch) await action.tap();
+			else await action.click();
+			if (!(await views()).includes('applied=design reviews (old)')) throw new Error('a press: ' + (await views()));
+			const first = list.getByRole('button', { name: 'Waiting on me', exact: true });
+			await first.focus();
+			await page.keyboard.press('Enter');
+			if (!(await views()).includes('applied=Waiting on me')) throw new Error('Enter: ' + (await views()));
+			const remove = list.getByRole('button', { name: 'Delete view Waiting on me', exact: true });
+			if ((await misses(remove)) > 0) throw new Error('the remove button is not a full target');
+			const a = await first.boundingBox();
+			const r = await remove.boundingBox();
+			if (a.x + a.width > r.x + 0.5) throw new Error('the action and the remove button overlap');
+			await remove.focus();
+			await page.keyboard.press('Enter');
+			await wait(50);
+			if (!(await views()).includes('views=1')) throw new Error('remove: ' + (await views()));
+			const now = await focused();
+			if (now !== 'Delete view design reviews (old)') throw new Error('focus after removing went to ' + now);
 		});
 	},
 

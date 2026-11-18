@@ -40,7 +40,7 @@ export { default as TabNav, type TabNavItem, type TabNavProps } from './componen
 export { default as Checkbox, type CheckboxProps } from './components/Checkbox.svelte';
 export { default as CheckboxGroup, type CheckboxGroupItem, type CheckboxGroupProps } from './components/CheckboxGroup.svelte';
 export { default as RadioGroup, type RadioGroupItem, type RadioGroupProps } from './components/RadioGroup.svelte';
-export { default as Slider, type SliderProps } from './components/Slider.svelte';
+export { default as Slider, type SliderLabelBeside, type SliderProps } from './components/Slider.svelte';
 export { default as Switch, type SwitchProps } from './components/Switch.svelte';
 export { default as Stat, type StatProps, type StatTone, type StatVariant } from './components/Stat.svelte';
 export { default as Steps, type StepsBreakpoint, type StepsItem, type StepsProps, type StepsState } from './components/Steps.svelte';

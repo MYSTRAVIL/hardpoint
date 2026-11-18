@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { HTMLAnchorAttributes, HTMLAttributes } from 'svelte/elements';
+	import type { HTMLAnchorAttributes, HTMLAttributes, HTMLButtonAttributes, MouseEventHandler } from 'svelte/elements';
 
 	/**
 	 * A data category, drawn in `--category-1` to `--category-5`. The colour
@@ -8,14 +8,20 @@
 	export type ChipCategory = 1 | 2 | 3 | 4 | 5;
 
 	/**
-	 * Attributes and handlers not listed here go to the chip's link, or to
-	 * its text when it has no `href`; `class` goes to the root.
+	 * Attributes and handlers not listed here go to the chip's body: its
+	 * link, its button, or its text; `class` goes to the root.
 	 */
-	export type ChipProps = Omit<HTMLAnchorAttributes, 'children' | 'href'> & {
+	export type ChipProps = Omit<HTMLAnchorAttributes, 'children' | 'href' | 'onclick'> & {
 		/** The value, as written: never caps. The remove button's name ends in it. */
 		label: string;
 		/** Makes the chip a link. A remove button stays a sibling of the link. */
 		href?: string;
+		/**
+		 * Without `href`, makes the chip a button that runs this action, such
+		 * as applying a saved filter. With `href` it runs on the link's click,
+		 * as on any link. A remove button stays a sibling of the button.
+		 */
+		onclick?: MouseEventHandler<HTMLElement> | null;
 		/** A number after the value in `--muted`, such as how many items carry it. */
 		count?: number;
 		/**
@@ -43,6 +49,7 @@
 	let {
 		label,
 		href,
+		onclick,
 		count,
 		tentative = false,
 		tentativeLabel = 'tentative',
@@ -55,6 +62,7 @@
 
 	// `rest` holds the attributes of one element; each branch reads it as its own.
 	const asSpan = (attributes: typeof rest) => attributes as HTMLAttributes<HTMLSpanElement>;
+	const asButton = (attributes: typeof rest) => attributes as HTMLButtonAttributes;
 
 	let root: HTMLSpanElement | null = $state(null);
 
@@ -65,9 +73,9 @@
 	// (the nearest ul, ol or role="list"), if focus was inside the chip. When
 	// the chip is destroyed and focus has fallen to <body>, focus moves to
 	// the chip now at that place (the next one), or else the one before it:
-	// its remove button, or its link. If the app moved focus itself, or the
-	// chip stays, nothing moves. A pointer press never takes focus (below),
-	// so a mouse or a touch removal leaves focus where it was.
+	// its remove button, or its link or button. If the app moved focus
+	// itself, or the chip stays, nothing moves. A pointer press never takes
+	// focus (below), so a mouse or a touch removal leaves focus where it was.
 	let removal: { chip: HTMLElement; list: Element; index: number } | null = null;
 
 	function remove() {
@@ -85,7 +93,7 @@
 		if ((active && active !== document.body) || !list.isConnected) return;
 		const chips = [...list.querySelectorAll<HTMLElement>('.hp-chip')].filter((c) => c !== chip);
 		const next = chips[index] ?? chips[index - 1];
-		(next?.querySelector<HTMLElement>('.hp-chip-remove') ?? next?.querySelector<HTMLElement>('a.hp-chip-body'))?.focus();
+		(next?.querySelector<HTMLElement>('.hp-chip-remove') ?? next?.querySelector<HTMLElement>(':is(a, button).hp-chip-body'))?.focus();
 	}
 
 	// Teardown only: runs when the chip is destroyed. A microtask later the
@@ -107,14 +115,15 @@
 <!--
 	A value in an outlined block: the --border-control edge of an outlined
 	control, no fill, Geist as written, never caps. Display by default; a
-	link with `href`. A remove button follows the text, never inside the
-	link. Interactive chips reserve their hit area on coarse pointers, so a
-	row of them needs no extra gap.
+	link with `href`, a button with `onclick`. A remove button follows the
+	text, never inside the link or the button. Interactive chips reserve
+	their hit area on coarse pointers, so a row of them needs no extra gap.
 -->
 <span
 	bind:this={root}
 	class={['hp-chip', className]}
 	data-link={href ? '' : undefined}
+	data-action={!href && onclick ? '' : undefined}
 	data-removable={onremove ? '' : undefined}
 	data-tentative={tentative ? '' : undefined}
 	data-category={category}
@@ -131,7 +140,9 @@
 		{/if}
 	{/snippet}
 	{#if href}
-		<a {...rest} {href} class="hp-chip-body">{@render content()}</a>
+		<a {...rest} {href} {onclick} class="hp-chip-body">{@render content()}</a>
+	{:else if onclick}
+		<button {...asButton(rest)} type="button" {onclick} class="hp-chip-body">{@render content()}</button>
 	{:else}
 		<span {...asSpan(rest)} class="hp-chip-body">{@render content()}</span>
 	{/if}
@@ -194,6 +205,7 @@
 	   chip's own margin box: 8px above and below on coarse pointers, none on
 	   fine ones. Rows of chips 8px apart keep 8px between targets. */
 	.hp-chip[data-link],
+	.hp-chip[data-action],
 	.hp-chip[data-removable] {
 		margin-block: max(0px, (var(--hit-target) - 1lh - 4px) / 2);
 	}
@@ -253,14 +265,24 @@
 		background: var(--category-5);
 	}
 
-	/* ---- Link: an outlined control ------------------------------------- */
+	/* ---- Link or button: an outlined control ---------------------------- */
 
+	/* A button body drops the browser's own button look. */
+	button.hp-chip-body {
+		margin: 0;
+		border: 0;
+		background: transparent;
+		font: inherit;
+		letter-spacing: inherit;
+		text-align: inherit;
+		text-transform: inherit;
+	}
 	/* At least --hit-target wide, and --hit-target high through ::before. */
-	a.hp-chip-body {
+	:is(a, button).hp-chip-body {
 		min-width: var(--hit-target);
 		cursor: pointer;
 	}
-	a.hp-chip-body::before {
+	:is(a, button).hp-chip-body::before {
 		content: '';
 		position: absolute;
 		inset-inline: 0;
@@ -302,30 +324,30 @@
 	}
 	/* Beside plain text the button's own space separates them; beside a
 	   link a 1px line marks where one target ends. */
-	.hp-chip[data-removable]:not([data-link]) > .hp-chip-body {
+	.hp-chip[data-removable]:not([data-link], [data-action]) > .hp-chip-body {
 		padding-inline-end: 0;
 	}
-	.hp-chip[data-link] > .hp-chip-remove {
+	.hp-chip:is([data-link], [data-action]) > .hp-chip-remove {
 		border-inline-start: 1px solid var(--border-control);
 	}
 
 	/* ---- Hover: fine pointers only ------------------------------------- */
 
 	@media (hover: hover) and (pointer: fine) {
-		a.hp-chip-body,
+		:is(a, button).hp-chip-body,
 		.hp-chip-remove {
 			transition:
 				background-color var(--dur-hover) var(--settle),
 				color var(--dur-hover) var(--settle);
 		}
-		a.hp-chip-body:hover,
+		:is(a, button).hp-chip-body:hover,
 		.hp-chip-remove:hover {
 			background-color: var(--surface-hover);
 		}
 		.hp-chip-remove:hover {
 			color: var(--text);
 		}
-		a.hp-chip-body:active,
+		:is(a, button).hp-chip-body:active,
 		.hp-chip-remove:active {
 			transition-duration: var(--dur-press);
 		}
@@ -333,7 +355,7 @@
 
 	/* ---- Press: after hover, so it wins while the pointer is down ------ */
 
-	a.hp-chip-body:active,
+	:is(a, button).hp-chip-body:active,
 	.hp-chip-remove:active {
 		background-color: var(--surface-raised);
 	}

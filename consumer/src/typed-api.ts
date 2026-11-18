@@ -32,6 +32,12 @@ export const sliderStringValue: SliderProps = { label: 'Level', value: '1' };
 
 export const typedFields: TextFieldType[] = ['number', 'date', 'time', 'datetime-local'];
 export const slider: SliderProps = { label: 'Level', value: 1, min: 0, max: 10, step: 1, format: (n) => String(n), valueText: (n) => `Level ${n}`, hint: 'Hint' };
+// Slider's label sits beside the track as on the other fields, or is hidden.
+import type { SliderLabelBeside } from '@mystravil/hardpoint';
+export const sliderBeside: SliderLabelBeside[] = [true, false, 'medium', 'expanded', 'large'];
+export const sliderHidden: SliderProps = { label: 'Zoom', labelHidden: true, labelBeside: 'medium' };
+// @ts-expect-error labelBeside takes the field breakpoints only
+export const sliderBesideWrong: SliderProps = { label: 'Zoom', labelBeside: 'compact' };
 export const tabNav: TabNavProps = { label: 'Pages', items: [{ href: '/a', label: 'A' }], current: '/a' };
 
 // Charts: a name is required, and a tone is a status hue, never a category.

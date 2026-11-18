@@ -2,6 +2,12 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
+## 0.6.1 (2026-11-18)
+
+- **Added**:
+  - `Slider` `labelBeside` (`true` or `'medium'`, `'expanded'`, `'large'`, as on TextField and Select) puts the label, the track and the value on one row, at least one control high, so a slider lines up with fields whose label sits beside their well. `labelHidden` hides the label from sight, keeps it as the accessible name and puts the track and the value on one row; it overrides `labelBeside`. On one row the value keeps the width of its longer end, so the track never changes length. New type `SliderLabelBeside`.
+  - `Chip` `onclick` without `href` makes the chip a button: an action such as applying a saved view, with the outlined button states a link chip has, and the value still as written. A remove button stays beside it. The root carries `data-action`. `ChipProps`' `onclick` is typed `MouseEventHandler<HTMLElement>` (was the anchor's).
+
 ## 0.6.0 (2026-11-18)
 
 The parts topic-map's move asked for. Nothing is renamed or removed. One type changes: `MenuItem`'s `ref` is now `HTMLElement | null`.

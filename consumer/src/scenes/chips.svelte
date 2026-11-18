@@ -4,6 +4,8 @@
 	let filters = $state(['Owner: Ada', 'Status: Open', 'Label: Web', 'Size: Large']);
 	let linked = $state(['Doc A', 'Doc B']);
 	let tags = $state(['alpha', 'beta']);
+	let views = $state(['Waiting on me', 'design reviews (old)']);
+	let applied = $state('');
 	let posted = $state('');
 	/** @param {SubmitEvent & { currentTarget: HTMLFormElement }} event */
 	function submit(event) {
@@ -35,6 +37,16 @@
 		{/each}
 	</ul>
 	<Button id="outside">Outside</Button>
+
+	<!-- Action chips: a press applies a saved view, a remove button deletes it. -->
+	<ul class="row" aria-label="Saved views">
+		{#each views as view (view)}
+			<li>
+				<Chip label={view} onclick={() => (applied = view)} removeLabel={`Delete view ${view}`} onremove={() => (views = views.filter((v) => v !== view))} />
+			</li>
+		{/each}
+	</ul>
+	<p id="views-state">applied={applied} views={views.length}</p>
 
 	<form id="chip-form" onsubmit={submit}>
 		<ChipField

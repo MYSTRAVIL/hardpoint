@@ -80,14 +80,14 @@
     "1440x900 fine, light": {"texts":138,"targets":30,"overlays":0,"overlayTexts":0,"overlayTargets":0}
   },
   "/components/chip": {
-    "320x640 touch, dark": {"texts":122,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "390x844 touch, dark": {"texts":122,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "768x1024 touch, dark": {"texts":125,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "1440x900 fine, dark": {"texts":125,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "320x640 touch, light": {"texts":122,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "390x844 touch, light": {"texts":122,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "768x1024 touch, light": {"texts":125,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "1440x900 fine, light": {"texts":125,"targets":26,"overlays":0,"overlayTexts":0,"overlayTargets":0}
+    "320x640 touch, dark": {"texts":132,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "390x844 touch, dark": {"texts":132,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "768x1024 touch, dark": {"texts":135,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "1440x900 fine, dark": {"texts":135,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "320x640 touch, light": {"texts":132,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "390x844 touch, light": {"texts":132,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "768x1024 touch, light": {"texts":135,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "1440x900 fine, light": {"texts":135,"targets":33,"overlays":0,"overlayTexts":0,"overlayTargets":0}
   },
   "/components/chip-field": {
     "320x640 touch, dark": {"texts":116,"targets":20,"overlays":0,"overlayTexts":0,"overlayTargets":0},
@@ -310,14 +310,14 @@
     "1440x900 fine, light": {"texts":130,"targets":22,"overlays":15,"overlayTexts":170,"overlayTargets":142}
   },
   "/components/slider": {
-    "320x640 touch, dark": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "390x844 touch, dark": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "768x1024 touch, dark": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "1440x900 fine, dark": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "320x640 touch, light": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "390x844 touch, light": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "768x1024 touch, light": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0},
-    "1440x900 fine, light": {"texts":83,"targets":11,"overlays":0,"overlayTexts":0,"overlayTargets":0}
+    "320x640 touch, dark": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "390x844 touch, dark": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "768x1024 touch, dark": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "1440x900 fine, dark": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "320x640 touch, light": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "390x844 touch, light": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "768x1024 touch, light": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0},
+    "1440x900 fine, light": {"texts":103,"targets":14,"overlays":0,"overlayTexts":0,"overlayTargets":0}
   },
   "/components/sparkline": {
     "320x640 touch, dark": {"texts":83,"targets":5,"overlays":0,"overlayTexts":0,"overlayTargets":0},

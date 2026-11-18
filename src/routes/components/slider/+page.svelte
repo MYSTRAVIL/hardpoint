@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Slider from '#lib/components/Slider.svelte';
+	import TextField from '#lib/components/TextField.svelte';
 
 	let opacity = $state(60);
 	let threshold = $state(0.4);
@@ -8,6 +9,9 @@
 	let committed = $state(35);
 	let draft = $state(12);
 	let steps = $state(0);
+	let score = $state(0.6);
+	let minCount = $state('3');
+	let zoom = $state(100);
 
 	const percent = (n: number) => `${n}%`;
 	const fixed = (n: number) => n.toFixed(2);
@@ -36,6 +40,15 @@
 				slider’s accessible name. The value sits at the other end of that line in tabular figures.
 				<code>format</code> turns the number into the text shown, such as <code>(n) =&gt; n + '%'</code>;
 				without it the number is shown as it is.
+			</li>
+			<li>
+				<strong>Label beside or hidden.</strong> <code>labelBeside</code> puts the label, the track and the
+				value on one row: <code>true</code> at every width, or <code>'medium'</code>, <code>'expanded'</code> or
+				<code>'large'</code> from 600px, 900px or 1200px up, as on text fields and selects. The row is at least
+				one control high, so it lines up with fields whose label sits beside their well, and the value keeps
+				the width of its longest end, so the track does not change length while the value moves.
+				<code>labelHidden</code> hides the label from sight and keeps it as the accessible name; the track and
+				the value share the row. It overrides <code>labelBeside</code>.
 			</li>
 			<li>
 				<strong>Value.</strong> <code>bind:value</code> holds the number. <code>min</code> (default 0),
@@ -159,6 +172,32 @@
 			<Slider label="Match threshold" min={0} max={1} step={0.05} format={fixed} bind:value={threshold} />
 		</div>
 	</section>
+
+	<section aria-labelledby="beside">
+		<h2 id="beside" class="hp-section-title">Label beside, in a toolbar</h2>
+		<p class="lede">
+			A one-row filter bar: a slider and a number field, each with its label beside it, so the row keeps one
+			control’s height. Below 600px the bar wraps, one control a line.
+		</p>
+		<div class="toolbar">
+			<Slider class="toolbar-slider" label="Min score" min={0} max={1} step={0.05} format={fixed} labelBeside bind:value={score} />
+			<TextField class="toolbar-count" label="Min count" type="number" min="0" labelBeside bind:value={minCount} />
+		</div>
+		<p class="value hp-caption">
+			<span class="hp-mono">score = {score}</span> · <span class="hp-mono">count = {minCount}</span>
+		</p>
+	</section>
+
+	<section aria-labelledby="hidden">
+		<h2 id="hidden" class="hp-section-title">Hidden label</h2>
+		<p class="lede">
+			A zoom control whose place makes its purpose plain. The label “Zoom” is not shown, and it still names
+			the slider for a screen reader.
+		</p>
+		<div class="stack">
+			<Slider label="Zoom" min={50} max={200} step={10} format={percent} labelHidden bind:value={zoom} />
+		</div>
+	</section>
 </main>
 
 <style>
@@ -210,6 +249,19 @@
 			grid-template-columns: repeat(2, minmax(0, 1fr));
 			gap: var(--space-8);
 		}
+	}
+	.toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-3) var(--space-6);
+		max-width: 48rem;
+	}
+	.toolbar > :global(.toolbar-slider) {
+		flex: 1 1 16rem;
+	}
+	.toolbar :global(.hp-text-field:has(.toolbar-count)) {
+		flex: 0 1 12rem;
 	}
 
 	.value {

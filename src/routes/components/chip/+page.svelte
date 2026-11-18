@@ -73,6 +73,12 @@
 		'Quarterly planning for the web, mobile and desktop releases'
 	];
 	let longValues = $state([...allLong]);
+
+	// Saved views: a press applies one, a remove button deletes it. Names
+	// are the user's, so they stay as written.
+	const allViews = ['Waiting on me', 'design reviews (old)', 'This week, web only'];
+	let views = $state([...allViews]);
+	let applied = $state('');
 </script>
 
 <svelte:head>
@@ -98,9 +104,10 @@
 				blocks.
 			</li>
 			<li>
-				<strong>Link.</strong> <code>href</code> makes the chip a link, with the hover, press and focus of
-				an outlined button. Other attributes and handlers go to the link, or to the text of a chip
-				without one; <code>class</code> goes to the root.
+				<strong>Link or action.</strong> <code>href</code> makes the chip a link, with the hover, press and
+				focus of an outlined button. Without <code>href</code>, <code>onclick</code> makes it a button with the
+				same states, for an action such as applying a saved view. Other attributes and handlers go to the
+				link, the button, or the text of a display chip; <code>class</code> goes to the root.
 			</li>
 			<li>
 				<strong>Count.</strong> <code>count</code> adds a number after the value in the muted ink, with
@@ -239,6 +246,31 @@
 		</ul>
 		<div class="again">
 			<Button variant="tertiary" onclick={() => (linked = [...allLinked])}>Link all again</Button>
+		</div>
+	</section>
+
+	<section aria-labelledby="action">
+		<h2 id="action" class="hp-section-title">Action and remove: saved views</h2>
+		<p class="lede">
+			Names people gave their saved views, as written. A press applies a view through
+			<code>onclick</code>; the remove button deletes it. The button and the remove button are siblings,
+			with a line between the two targets, as on a link.
+		</p>
+		<ul class="row" aria-label="Saved views">
+			{#each views as view (view)}
+				<li>
+					<Chip
+						label={view}
+						onclick={() => (applied = view)}
+						removeLabel={`Delete view ${view}`}
+						onremove={() => (views = views.filter((v) => v !== view))}
+					/>
+				</li>
+			{/each}
+		</ul>
+		<p class="applied hp-caption"><span class="hp-mono">applied = {applied || 'none'}</span></p>
+		<div class="again">
+			<Button variant="tertiary" onclick={() => (views = [...allViews])}>Restore views</Button>
 		</div>
 	</section>
 
@@ -394,6 +426,10 @@
 
 	.again {
 		margin-top: var(--space-3);
+	}
+	.applied {
+		margin: var(--space-3) 0 0;
+		color: var(--muted);
 	}
 
 	.capped-lede {

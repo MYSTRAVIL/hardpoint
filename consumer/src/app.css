@@ -65,3 +65,17 @@ own-row {
 	display: inline-flex;
 	gap: var(--space-1);
 }
+
+/* A one-row filter bar: a slider and a number field, labels beside. */
+.toolbar-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--space-3) var(--space-6);
+}
+.toolbar-row > .hp-slider {
+	flex: 1 1 16rem;
+}
+.toolbar-row > .hp-text-field {
+	flex: 0 1 12rem;
+}
