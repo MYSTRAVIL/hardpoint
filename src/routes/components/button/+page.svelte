@@ -1,5 +1,7 @@
 <script lang="ts">
 	import Button, { type ButtonVariant } from '#lib/components/Button.svelte';
+	import Menu from '#lib/components/Menu.svelte';
+	import MenuItem from '#lib/components/MenuItem.svelte';
 
 	const variants: { variant: ButtonVariant; note: string; icon: string; name: string }[] = [
 		{ variant: 'primary', note: 'Solid titanium block. The view’s one group of solid blocks.', icon: 'add', name: 'Add' },
@@ -18,6 +20,10 @@
 	];
 
 	const pageActions = ['Files', 'History', 'Members', 'Related'];
+
+	// The current-page demo: a Menu trigger stands for a group of pages.
+	const reportPages = ['Weekly', 'Monthly', 'Yearly'];
+	let page = $state<string>('Overview');
 </script>
 
 <svelte:head>
@@ -60,6 +66,12 @@
 				A disabled <code>&lt;button&gt;</code> leaves the tab order. A disabled link drops its
 				<code>href</code> and gets <code>aria-disabled="true"</code>. Say why in nearby text, because a
 				disabled control cannot explain itself.
+			</li>
+			<li>
+				<code>aria-current</code> with any value but <code>false</code> marks a secondary or tertiary
+				button as the current page. It takes the look of a selected tab facing the content: the
+				selected tint and a 3px titanium edge on its bottom side. Hover and press keep their tints and
+				the edge stays. A primary button takes no current look. See <a href="#current">Current page</a>.
 			</li>
 			<li>
 				Extra attributes, event handlers and <code>class</code> pass through to the element. Button
@@ -189,6 +201,62 @@
 				<Button class="group-item" variant="primary" opens href="#demo">{label}</Button>
 			{/each}
 		</div>
+	</section>
+
+	<section aria-labelledby="current">
+		<h2 id="current" class="hp-section-title">Current page</h2>
+		<p class="lede">
+			<code>aria-current</code> on a secondary or tertiary button gives it the selection look of a tab
+			facing the content, with nothing moving: the colour transitions are Button’s own. The use case is
+			a menu trigger that stands for a group of pages while one of them is open. Spread the trigger
+			props first and <code>aria-current="page"</code> after them. A plain attribute selector styles
+			it at the same specificity as the other Button rules, so an app’s rule overrides it the same way.
+		</p>
+		<div class="matrix">
+			{#each variants as v (v.variant)}
+				<div class="row">
+					<div class="row-head">
+						<h3 class="hp-label">{v.variant}</h3>
+						<p class="hp-caption">
+							{v.variant === 'primary' ? 'No current look: the block stays as it is.' : 'The selected tint and the bottom edge.'}
+						</p>
+					</div>
+					<div class="cells">
+						<div class="cell">
+							<span class="hp-caption state">Rest</span>
+							<Button variant={v.variant} aria-current="page">Reports</Button>
+						</div>
+						<div class="cell">
+							<span class="hp-caption state">Not current</span>
+							<Button variant={v.variant}>Reports</Button>
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+		<h3 class="hp-label sub">Menu trigger</h3>
+		<p class="lede">
+			The Menu’s trigger stands for three pages. While one of them is open, the trigger is current;
+			Overview is a button of its own.
+		</p>
+		<div class="group">
+			<Button
+				variant="tertiary"
+				aria-current={page === 'Overview' ? 'page' : undefined}
+				onclick={() => (page = 'Overview')}
+			>
+				Overview
+			</Button>
+			<Menu label="Reports">
+				{#snippet trigger({ props })}
+					<Button {...props} aria-current={page !== 'Overview' ? 'page' : undefined}>Reports</Button>
+				{/snippet}
+				{#each reportPages as name (name)}
+					<MenuItem onSelect={() => (page = name)}>{name}</MenuItem>
+				{/each}
+			</Menu>
+		</div>
+		<p class="hp-caption state">Open page: {page}</p>
 	</section>
 
 	<section aria-labelledby="inline">

@@ -33,6 +33,7 @@
 	];
 
 	let sort = $state('newest');
+	let sortKey = $state('name');
 	let language = $state('en');
 	let pageSize = $state(25);
 	let zone = $state('cet');
@@ -88,7 +89,8 @@
 				<strong>Label.</strong> <code>label</code> is required and shows as a caps label above the well,
 				linked to the select. <code>labelBeside</code> moves it beside the well: <code>true</code> at every
 				width, or <code>'medium'</code>, <code>'expanded'</code> or <code>'large'</code> from 600px, 900px
-				or 1200px up.
+				or 1200px up. <code>labelHidden</code> hides the label from sight; it stays the select's accessible
+				name and overrides <code>labelBeside</code>.
 			</li>
 			<li>
 				<strong>Hint and error.</strong> <code>hint</code> shows guidance under the well in the muted
@@ -175,6 +177,22 @@
 				<option value="system">Match system</option>
 			</NativeSelect>
 		</div>
+	</section>
+
+	<section aria-labelledby="hidden">
+		<h2 id="hidden" class="hp-section-title">Label hidden</h2>
+		<p class="lede">
+			<code>labelHidden</code>: the label is hidden from sight and stays the select's accessible name. Use
+			it where the select's place makes its purpose plain, such as a sort control in a toolbar. It
+			overrides <code>labelBeside</code>.
+		</p>
+		<div class="toolbar">
+			<p class="count hp-caption">24 files</p>
+			<div class="toolbar-select">
+				<NativeSelect label="Sort files" labelHidden items={sortOptions} bind:value={sortKey} />
+			</div>
+		</div>
+		<p class="value hp-caption"><span class="hp-mono">sortKey = {sortKey}</span></p>
 	</section>
 
 	<section aria-labelledby="groups">
@@ -338,5 +356,21 @@
 	.value {
 		margin-top: var(--space-3);
 		color: var(--muted);
+	}
+
+	/* A count at the start and the select at the end, as in a list's toolbar. */
+	.toolbar {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
+		max-width: 424px;
+	}
+	.count {
+		margin: 0;
+		color: var(--muted);
+	}
+	.toolbar-select {
+		flex: 0 1 200px;
 	}
 </style>

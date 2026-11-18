@@ -52,13 +52,12 @@
 		}
 	];
 
-	const all: AppShellDestination[] = views.map((v) => ({
-		href: `${base}?view=${v.view}`,
-		label: v.label,
-		icon: v.icon
-	}));
+	// The same five views with longer labels and no icons, to show the
+	// two-line labels of the bar and the rail.
+	const longLabels = ['Opportunities', 'Breaking now', 'Saved searches', 'Recent files', 'Account settings'];
 
 	let count = $state('4');
+	let labelKind = $state<'short' | 'long' | 'wide'>('short');
 	let controlsKind = $state<'actions' | 'filters' | 'none'>('actions');
 	let titleKind = $state<'view' | 'long'>('view');
 	let compactNav = $state<AppShellCompactNav>('bar');
@@ -67,7 +66,13 @@
 	let owner = $state('anyone');
 
 	const active = $derived(views.find((v) => v.view === page.url.searchParams.get('view')) ?? views[0]);
-	const destinations = $derived(all.slice(0, Number(count)));
+	const destinations = $derived<AppShellDestination[]>(
+		views.slice(0, Number(count)).map((v, i) => ({
+			href: `${base}?view=${v.view}`,
+			label: labelKind === 'short' ? v.label : longLabels[i],
+			icon: labelKind === 'short' ? v.icon : undefined
+		}))
+	);
 	const current = $derived(`${base}?view=${active.view}`);
 	const title = $derived(titleKind === 'long' ? 'Quarterly planning and review' : active.label);
 </script>
@@ -127,6 +132,7 @@
 {/snippet}
 
 <AppShell
+	class={labelKind === 'wide' ? 'wide-rail' : undefined}
 	{title}
 	{destinations}
 	{current}
@@ -155,6 +161,15 @@
 			<code>href</code> matches <code>current</code>.
 		</p>
 		<div class="options">
+			<NativeSelect
+				label="Destination labels"
+				bind:value={labelKind}
+				items={[
+					{ value: 'short', label: 'Short, with icons' },
+					{ value: 'long', label: 'Long, no icons' },
+					{ value: 'wide', label: 'Long, no icons, wide rail' }
+				]}
+			/>
 			<NativeSelect
 				label="Destinations"
 				bind:value={count}
@@ -214,13 +229,20 @@
 			</li>
 			<li>
 				<strong>600 to 899px.</strong> The same header and controls row. The destinations form an
-				80px rail at the left under the header, each one a cell with the icon above the label.
+				80px rail at the left under the header, each one a cell with the icon above the label. A label
+				without an icon wraps to two lines (see the note on labels under Usage).
 			</li>
 			<li>
 				<strong>From 900px.</strong> A 240px sidebar of rows, each with the icon on the page edge under
 				the brand and the label after it, or the rail with <code>wideNav="rail"</code>.
 			</li>
-			<li><strong>From 1200px.</strong> The controls move into the header row, at the right.</li>
+			<li>
+				<strong>From 1200px.</strong> The controls move into the header row, at the right. The row is
+				one control high, so a control that shows a message (a field with an error, a short form)
+				does not go in it: put it in a <code>Popover</code> that a header <code>Button</code> opens,
+				or in the content. A controls column that grows wide pushes the centred title off centre,
+				because the brand column and the controls column share the row’s width equally.
+			</li>
 		</ul>
 	</section>
 
@@ -243,11 +265,23 @@
 				<code>destinations</code> lists three to five <code>{'{ href, label, icon }'}</code>, the one
 				list every navigation form uses. They are plain links, so SvelteKit or any other router
 				handles them. An app that builds an <code>href</code> from untrusted data validates the URL
-				first, because a <code>javascript:</code> URL runs when someone follows it. Keep labels to about
-				six letters: five destinations share 320px and the rail is 80px, and a label too long for its
-				cell ends in an ellipsis. The <code>icon</code> snippet
-				draws an inline <code>&lt;svg&gt;</code> in <code>currentColor</code> with a
-				<code>viewBox</code> and no <code>width</code> or <code>height</code>; it fills a 20px square.
+				first, because a <code>javascript:</code> URL runs when someone follows it. The
+				<code>icon</code> snippet draws an inline <code>&lt;svg&gt;</code> in <code>currentColor</code>
+				with a <code>viewBox</code> and no <code>width</code> or <code>height</code>; it fills a 20px
+				square.
+			</li>
+			<li>
+				<strong>Labels.</strong> A label is a fixed string set in caps. About six letters fit five
+				destinations across a 320px phone and the 80px rail on one line. In the bottom bar and in the
+				rail, a destination <em>without</em> an <code>icon</code> may wrap to two lines: the break
+				falls at a space, never inside a word, the lines are balanced and centred, and a label that
+				needs more than two lines ends in an ellipsis. The cell stays at least 56px high. A
+				destination with an icon, and every label in the drawer and the sidebar, stays on one line.
+				A single word wider than the cell’s 72px, such as “Documentation”, still ends in an
+				ellipsis. The app makes room by widening the rail with the token <code>--rail-width</code> in
+				its own stylesheet, for example <code>.hp-app-shell {'{ --rail-width: 128px }'}</code>. The
+				rail, the controls row and <code>&lt;main&gt;</code> all follow it. Choose “Long, no icons,
+				wide rail” under Try it to see this page do so.
 			</li>
 			<li>
 				<code>current</code> holds the <code>href</code> of the current destination. It gets
@@ -405,6 +439,12 @@
 	/* The equal-weight actions share a minimum width. */
 	.actions > :global(.action) {
 		min-width: 112px;
+	}
+
+	/* The app's own stylesheet makes room for a long single word: the token
+	   the rail, the controls row and main all read. */
+	:global(.wide-rail) {
+		--rail-width: 128px;
 	}
 
 	/* ---- Sample rows: no dividers, grouped by space --------------------- */

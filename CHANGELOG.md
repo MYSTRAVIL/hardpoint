@@ -2,6 +2,27 @@
 
 Hardpoint follows semantic versioning. Before 1.0.0, a breaking change raises the minor version.
 
+## 0.6.2 (2026-11-18)
+
+Fixes and small parts from topic-map's migration. Nothing is renamed or removed. Two changes touch accessibility trees: a `wide` Table's scroll container is a `group` (was a `region`), and a Section with `role="none"` is no longer a landmark.
+
+- **Added**:
+  - `Stat` `children` renders markup in place of `value`, such as a `Status` for a yes or no figure. Give exactly one of the two. The markup takes the value's type role, never ticks, and `unit` and `delta` still work.
+  - `Button` with `aria-current` (any value but `false`) on the `secondary` or `tertiary` variant takes the selected tint and a 3 px bottom edge, for a Menu trigger that stands for a group of pages while one of them is open.
+  - `Table` `muted(row)` shows a row in `--muted`, including the Chips, Status labels and links inside it, for lower-ranked rows. The row carries `data-muted`.
+  - `Table` column `markLive(row)` pulses that row's mark like Status `live`; it stops under reduced motion and `<Motion paused>`.
+  - `NativeSelect` `labelHidden`, as on TextField: the label is hidden from sight, stays the accessible name and overrides `labelBeside`.
+- **Changed**:
+  - `AppShell`: a destination without an icon may wrap its label to two lines in the bottom bar and the rail. It breaks at spaces, the lines are balanced, and the second line ends in an ellipsis. A single word too wide for the cell still ends in an ellipsis; set `--rail-width` to widen the rail.
+  - `TextField`: the search clear button fires `change` after `input`, so an app that commits a search on `change` sees the clear.
+  - `TextField` with a `list` (datalist): Chromium's arrow is hidden, as in ChipField, instead of drawing as a solid `--muted` block. The picker icon rule covers only the date, time and datetime-local types.
+  - `Section` with `role="none"` or `role="presentation"` leaves out `aria-labelledby`, so it is no longer a region landmark. Before, Chromium kept the named section a region whatever its role.
+  - `Table`: the scroll container of a `wide` table is a `group` named by `label`, not a `region`, so a wide Table inside a Section of the same name is one landmark.
+  - `Table`: the header band is one fill on a sticky `thead`. Sticky cells that each painted the band left a 1 px seam between cells at a device pixel ratio of 2.
+  - `Table`: in the stacked list a field with a status mark pads its label, so the mark no longer overlaps the label.
+  - `Table`: a column description button takes 16 px of the column (20 px with its gap with a mouse, 30 px on touch) and reaches its target through a pseudo-element; it took 28 px with a mouse and 48 px on touch.
+  - `Slider`: an `aria-describedby` the app passes goes to the thumb, after the hint's id, instead of to the track area, so one help line under a toolbar can describe the slider too.
+
 ## 0.6.1 (2026-11-18)
 
 - **Added**:

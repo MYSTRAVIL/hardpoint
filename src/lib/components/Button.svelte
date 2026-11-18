@@ -187,6 +187,21 @@
 		color: var(--danger);
 	}
 
+	/* ---- Current page: secondary and tertiary. A Menu trigger that stands
+	   for a group of pages takes the selection look of a tab facing the
+	   content (BRIEF, Tabs) while one of them is open: the selected tint and
+	   a 3px titanium edge on the bottom. Plain attribute selectors, one
+	   class and attributes like the rules above. Hover and press set their
+	   own tint after this and are more specific, and the edge stays; the
+	   shadow is not in the transition list, so it snaps. A primary button
+	   takes no current look. ------------------------------------------- */
+
+	:global(.hp-button[data-variant='secondary'][aria-current]:not([aria-current='false'])),
+	:global(.hp-button[data-variant='tertiary'][aria-current]:not([aria-current='false'])) {
+		background: var(--surface-selected);
+		box-shadow: inset 0 -3px 0 var(--accent);
+	}
+
 	/* ---- Opens another view: a small ▸ drawn in CSS ------------------ */
 
 	:global(.hp-button[data-opens]::after) {

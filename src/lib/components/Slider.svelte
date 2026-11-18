@@ -12,8 +12,10 @@
 	 * Bits UI's single-value Slider root props, minus what this component
 	 * sets itself. Attributes, `id` and handlers not listed here go to the
 	 * track area (the Bits UI root, `.hp-slider-control`); `class` goes to the
-	 * outer `.hp-slider`. `onValueChange` runs on every change while the
-	 * thumb moves, `onValueCommit` once when a drag or a key press ends.
+	 * outer `.hp-slider`. `aria-describedby` goes to the thumb, after the
+	 * hint's id, so the slider can point at help text elsewhere on the page.
+	 * `onValueChange` runs on every change while the thumb moves,
+	 * `onValueCommit` once when a drag or a key press ends.
 	 */
 	export type SliderProps = Omit<
 		Extract<BitsSlider.RootProps, { type: 'single' }>,
@@ -84,6 +86,7 @@
 		labelHidden = false,
 		disabled = false,
 		class: className,
+		'aria-describedby': describedBy,
 		ref = $bindable(null),
 		...rest
 	}: SliderProps = $props();
@@ -91,6 +94,10 @@
 	const uid = $props.id();
 	const labelId = `${uid}-label`;
 	const hintId = `${uid}-hint`;
+
+	// The thumb is described by the hint, then by the app's own text
+	// elsewhere on the page, as TextField joins its messages.
+	const describedByIds = $derived([hint ? hintId : undefined, describedBy].filter(Boolean).join(' ') || undefined);
 
 	// The value as the control holds it: Bits UI starts an unset value at
 	// `min` and snaps a stray one to a step.
@@ -143,7 +150,7 @@
 				<BitsSlider.Thumb
 					index={0}
 					aria-labelledby={labelId}
-					aria-describedby={hint ? hintId : undefined}
+					aria-describedby={describedByIds}
 					aria-valuetext={(valueText ?? format)(shown)}
 				>
 					{#snippet child({ props })}

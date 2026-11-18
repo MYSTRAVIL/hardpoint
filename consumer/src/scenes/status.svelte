@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button, Status } from '@mystravil/hardpoint';
+	import { Button, Stat, Status } from '@mystravil/hardpoint';
 	import { Motion } from '@mystravil/hardpoint/motion';
 	let paused = $state(false);
 </script>
@@ -20,5 +20,11 @@
 			<div id="nested"><Status live tone="warn">Waiting</Status></div>
 		</Motion>
 	</Motion>
+	<!-- A Stat whose value is markup: a Status in the value's place. -->
+	<div id="stats">
+		<Stat label="Sync allowed" unit="jobs" delta={2} deltaNote="since noon"><Status tone="ok">Yes</Status></Stat>
+		<Stat label="Deploy window" variant="display"><Status>Open</Status></Stat>
+		<Stat label="Open tasks" value={18} variant="display" />
+	</div>
 	<Button onclick={() => (paused = !paused)}>{paused ? 'Resume' : 'Pause'} animations</Button>
 </main>

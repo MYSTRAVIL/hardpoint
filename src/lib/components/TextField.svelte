@@ -131,9 +131,11 @@
 	// The browser's own cancel button is hidden (CSS below) and this one
 	// takes its place, so every engine draws the same control. It writes
 	// the empty value and fires a bubbling `input`, as typing would, so
-	// `bind:value` and the app's `oninput` both hear it, then focus returns
-	// to the field. A mouse or a touch press never takes focus from the
-	// field, so an on-screen keyboard stays up; keys reach the button by Tab.
+	// `bind:value` and the app's `oninput` both hear it, then a bubbling
+	// `change`, so an app that commits a search on `change` sees the clear
+	// as it sees Enter or blur after typing. Then focus returns to the
+	// field. A mouse or a touch press never takes focus from the field, so
+	// an on-screen keyboard stays up; keys reach the button by Tab.
 	const clearable = $derived(type === 'search');
 	const showClear = $derived(clearable && !!value && !disabled && !readonly);
 
@@ -141,6 +143,8 @@
 		if (!ref) return;
 		ref.value = '';
 		ref.dispatchEvent(new Event('input', { bubbles: true }));
+		// A search an app commits on `change` sees the clear too.
+		ref.dispatchEvent(new Event('change', { bubbles: true }));
 		ref.focus();
 	}
 
@@ -339,7 +343,7 @@
 	input[type='time'] {
 		--picker-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 2.5h11v11h-11zM8 5v3.5L10.5 10' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='square'/%3E%3C/svg%3E");
 	}
-	input::-webkit-calendar-picker-indicator {
+	input:is([type='date'], [type='time'], [type='datetime-local'])::-webkit-calendar-picker-indicator {
 		box-sizing: content-box;
 		width: var(--space-4);
 		height: var(--space-4);
@@ -352,12 +356,20 @@
 		cursor: pointer;
 	}
 	@media (hover: hover) and (pointer: fine) {
-		input::-webkit-calendar-picker-indicator:hover {
+		input:is([type='date'], [type='time'], [type='datetime-local'])::-webkit-calendar-picker-indicator:hover {
 			background: var(--text);
 		}
 	}
-	input:is(:disabled, [readonly])::-webkit-calendar-picker-indicator {
+	input:is([type='date'], [type='time'], [type='datetime-local']):is(:disabled, [readonly])::-webkit-calendar-picker-indicator {
 		display: none;
+	}
+	/* Chromium draws a solid triangle at the end of a field with a
+	   datalist (`list`), on hover and focus, from its own shadow styles,
+	   which only !important overrides. The picker rule above is scoped to
+	   the date and time types, so it never reaches that arrow. The well
+	   stays a plain text well: suggestions show as you type, and with ↓. */
+	input[list]:not([type='date'], [type='time'], [type='datetime-local'])::-webkit-calendar-picker-indicator {
+		display: none !important;
 	}
 	/* WebKit on iOS centres the value of an empty date box and collapses it;
 	   the value starts at the start edge like any text. */

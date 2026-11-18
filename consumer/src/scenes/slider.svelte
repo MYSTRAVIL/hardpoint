@@ -9,6 +9,7 @@
 	let score = $state(0.6);
 	let count = $state('3');
 	let zoom = $state(100);
+	let hinted = $state(30);
 </script>
 
 <main class="page">
@@ -25,8 +26,10 @@
 	<Slider label="Quality" min={1} max={10} valueText={(n) => `Level ${n} of 10`} bind:value={level} />
 	<Slider label="Locked" disabled format={(n) => `${n}%`} bind:value={locked} />
 	<div class="toolbar-row">
-		<Slider label="Min score" min={0} max={1} step={0.05} format={(n) => n.toFixed(2)} labelBeside bind:value={score} />
-		<TextField label="Min count" type="number" labelBeside bind:value={count} />
+		<Slider label="Min score" min={0} max={1} step={0.05} format={(n) => n.toFixed(2)} labelBeside aria-describedby="toolbar-help" bind:value={score} />
+		<TextField label="Min count" type="number" labelBeside aria-describedby="toolbar-help" bind:value={count} />
 	</div>
+	<p id="toolbar-help">Rows below both limits are hidden.</p>
+	<Slider label="Hinted" hint="A hint of its own." aria-describedby="toolbar-help" bind:value={hinted} />
 	<Slider label="Zoom" min={50} max={200} step={10} format={(n) => `${n}%`} labelHidden bind:value={zoom} />
 </main>

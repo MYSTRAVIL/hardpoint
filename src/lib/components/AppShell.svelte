@@ -12,7 +12,13 @@
 		href: string;
 		/**
 		 * A short fixed label, set in caps. About six letters fit five across a
-		 * 320px phone and the 80px rail; a longer label ends in an ellipsis.
+		 * 320px phone and the 80px rail on one line. In the bottom bar and the
+		 * rail a destination without an `icon` may wrap to two lines, breaking
+		 * at spaces and balanced, so "Breaking now" fits; the second line ends
+		 * in an ellipsis. A destination with an icon, and a label in the
+		 * drawer or the sidebar, stays on one line. A single word wider than
+		 * the cell ends in an ellipsis: an app that needs room for it widens
+		 * the rail with `--rail-width` in its own stylesheet.
 		 */
 		label: string;
 		/**
@@ -264,7 +270,12 @@
 					{#if destination.icon}
 						<span class="icon">{@render destination.icon()}</span>
 					{/if}
-					<span class="text hp-label">{destination.label}</span>
+					<span
+						class="text hp-label"
+						data-form={form}
+						data-wide={form === 'side' ? wideNav : undefined}
+						data-wrap={destination.icon ? undefined : ''}>{destination.label}</span
+					>
 				</a>
 			</li>
 		{/each}
@@ -674,6 +685,35 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+
+	/* A destination without an icon, in a column cell (the bottom bar, and
+	   the side navigation while it is the rail), may wrap to two lines: it
+	   breaks at spaces only, balanced and centred, and line-clamp ends the
+	   second line in an ellipsis. The cell keeps its 56px minimum, and a
+	   destination with an icon keeps one line. A single word wider than the
+	   cell still ends in an ellipsis; an app makes room with --rail-width. */
+	.text[data-wrap][data-form='bar'],
+	.text[data-wrap][data-form='side'] {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		white-space: normal;
+		overflow-wrap: normal;
+		text-align: center;
+		text-wrap: balance;
+	}
+	/* The sidebar is a row: one line again. */
+	@media (min-width: 900px) {
+		.text[data-wrap][data-form='side'][data-wide='sidebar'] {
+			display: block;
+			-webkit-line-clamp: none;
+			line-clamp: none;
+			white-space: nowrap;
+			text-align: start;
+			text-wrap: wrap;
+		}
 	}
 
 	/* The current destination: the selection mark, a 3px titanium edge and

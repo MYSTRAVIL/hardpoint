@@ -1,4 +1,5 @@
 <script lang="ts" module>
+	import type { Snippet } from 'svelte';
 	import type { HTMLAttributes } from 'svelte/elements';
 
 	/**
@@ -10,41 +11,59 @@
 	/** A status hue for the delta: `ok` good, `warn` needs attention, `danger` bad. */
 	export type StatTone = 'ok' | 'warn' | 'danger';
 
-	export type StatProps = Omit<HTMLAttributes<HTMLDListElement>, 'children'> & {
-		/** The caps label. A fixed string the app defines. */
-		label: string;
-		/**
-		 * The value in Geist with tabular figures. A string is shown as given
-		 * and changes at once. A number is shown through `format`; when it
-		 * changes after the first render, it ticks from the shown figure to
-		 * the new one (BRIEF, motion rule 5).
-		 */
-		value: string | number;
-		/**
-		 * Formats a number `value` at rest and at every step of a tick, for
-		 * example `(n) => n.toLocaleString('en-US')`. Each step is rounded to
-		 * the larger number of decimal places of the old and new value before
-		 * it is formatted. Without `format` a number shows as `String(value)`,
-		 * and the steps show those decimal places.
-		 */
-		format?: (value: number) => string;
-		/** A unit after the value, smaller and in the muted ink: `EUR`, `ms`, `tasks`. */
-		unit?: string;
-		/**
-		 * The change, in the muted ink. A number gets its sign: `+12`, `−3`
-		 * (a true minus), `0`. A string is shown as written, sign included.
-		 */
-		delta?: string | number;
-		/** What the delta compares with, after it: `since last week`. */
-		deltaNote?: string;
-		/**
-		 * Colours the delta in a status hue. Without it the delta stays muted.
-		 * The label or `deltaNote` must say the same, because colour is never
-		 * the only signal.
-		 */
-		tone?: StatTone;
-		variant?: StatVariant;
-	};
+	type StatValue =
+		| {
+				/**
+				 * The value in Geist with tabular figures. A string is shown as given
+				 * and changes at once. A number is shown through `format`; when it
+				 * changes after the first render, it ticks from the shown figure to
+				 * the new one (BRIEF, motion rule 5). Give `value` or `children`,
+				 * never both.
+				 */
+				value: string | number;
+				/**
+				 * Formats a number `value` at rest and at every step of a tick, for
+				 * example `(n) => n.toLocaleString('en-US')`. Each step is rounded to
+				 * the larger number of decimal places of the old and new value before
+				 * it is formatted. Without `format` a number shows as `String(value)`,
+				 * and the steps show those decimal places.
+				 */
+				format?: (value: number) => string;
+				children?: never;
+		  }
+		| {
+				value?: never;
+				format?: never;
+				/**
+				 * The value as markup, in the value's place: a yes or no figure shown
+				 * as a `Status`, for example. It takes the value's type role (the
+				 * standard or the display size) and never ticks; `unit` and `delta`
+				 * work as with a `value`. Give `value` or `children`, never both.
+				 */
+				children: Snippet;
+		  };
+
+	export type StatProps = Omit<HTMLAttributes<HTMLDListElement>, 'children'> &
+		StatValue & {
+			/** The caps label. A fixed string the app defines. */
+			label: string;
+			/** A unit after the value, smaller and in the muted ink: `EUR`, `ms`, `tasks`. */
+			unit?: string;
+			/**
+			 * The change, in the muted ink. A number gets its sign: `+12`, `−3`
+			 * (a true minus), `0`. A string is shown as written, sign included.
+			 */
+			delta?: string | number;
+			/** What the delta compares with, after it: `since last week`. */
+			deltaNote?: string;
+			/**
+			 * Colours the delta in a status hue. Without it the delta stays muted.
+			 * The label or `deltaNote` must say the same, because colour is never
+			 * the only signal.
+			 */
+			tone?: StatTone;
+			variant?: StatVariant;
+		};
 </script>
 
 <script lang="ts">
@@ -56,6 +75,7 @@
 		label,
 		value,
 		format,
+		children,
 		unit,
 		delta,
 		deltaNote,
@@ -146,7 +166,8 @@
 	`--dur-tick` on the `--tick` curve, never on the first render. The final
 	value stays in the accessible text; the moving steps are aria-hidden. The
 	root carries `data-ticking` during a tick. Extra attributes and `class` go
-	to the <dl>.
+	to the <dl>. With `children` instead of `value`, the snippet fills the value's
+	<dd>, takes its type role and never ticks.
 -->
 <dl
 	{...rest}
@@ -160,12 +181,12 @@
 		bind:this={valueEl}
 		class={['hp-stat-value', variant === 'display' ? 'hp-display' : 'hp-page-title hp-num']}
 	>
-		<span class="hp-stat-figure"
-			><span class="hp-stat-final">{text}</span>{#if ticking}<span
-					class="hp-stat-from"
-					aria-hidden="true">{from}</span
-				><span class="hp-stat-step" aria-hidden="true">{step}</span>{/if}</span
-		>{#if unit}{' '}<span class="hp-stat-unit">{unit}</span>{/if}
+		{#if value === undefined}{@render children?.()}{:else}<span class="hp-stat-figure"
+				><span class="hp-stat-final">{text}</span>{#if ticking}<span
+						class="hp-stat-from"
+						aria-hidden="true">{from}</span
+					><span class="hp-stat-step" aria-hidden="true">{step}</span>{/if}</span
+			>{/if}{#if unit}{' '}<span class="hp-stat-unit">{unit}</span>{/if}
 	</dd>
 	{#if change !== undefined && change !== ''}
 		<dd class="hp-stat-delta">

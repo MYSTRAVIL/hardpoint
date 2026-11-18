@@ -1,5 +1,5 @@
 <script>
-	import { Button } from '@mystravil/hardpoint';
+	import { Button, Menu, MenuItem } from '@mystravil/hardpoint';
 	let clicks = $state(0);
 	/** @type {HTMLElement | null} */
 	let ref = $state(null);
@@ -27,5 +27,21 @@
 			<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 4h10M6 4V2h4v2M4 4l.5 9h7L12 4" /></svg>
 		</Button>
 		<Button id="b-danger-link" tone="danger" href="#buttons">Danger link</Button>
+	</div>
+	<!-- A current page: a secondary or tertiary button takes the selection look; primary and aria-current="false" do not. -->
+	<div id="current" class="row">
+		<Button id="b-current" aria-current="page">Reports</Button>
+		<Button id="b-current-tertiary" variant="tertiary" aria-current="true">Reports</Button>
+		<Button id="b-current-primary" variant="primary" aria-current="page">Reports</Button>
+		<Button id="b-current-false" aria-current="false">Reports</Button>
+		<span id="current-menu">
+			<Menu label="Pages">
+				{#snippet trigger({ props })}
+					<Button {...props} aria-current="page">Pages</Button>
+				{/snippet}
+				<MenuItem>Weekly</MenuItem>
+				<MenuItem>Monthly</MenuItem>
+			</Menu>
+		</span>
 	</div>
 </main>

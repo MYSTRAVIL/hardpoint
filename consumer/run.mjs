@@ -429,6 +429,28 @@ const drivers = {
 			await wait(300);
 			if ((await status.count()) !== 1 || (await text(status))) throw new Error('the status region is not empty after closing');
 		});
+		await c.step('NativeSelect labelHidden: the label is the select\'s name, hidden from sight, and overrides labelBeside', async () => {
+			const select = page.getByRole('combobox', { name: 'Order', exact: true });
+			if ((await select.count()) !== 1) throw new Error('no select named Order');
+			const got = await select.evaluate((n) => {
+				const root = n.closest('.hp-native-select');
+				const label = root.querySelector('label');
+				const box = label.getBoundingClientRect();
+				const well = n.getBoundingClientRect();
+				const rootBox = root.getBoundingClientRect();
+				return {
+					hiddenClass: label.classList.contains('hp-visually-hidden'),
+					labelFor: label.htmlFor === n.id,
+					beside: root.getAttribute('data-label-beside'),
+					labelSize: Math.round(box.width) + 'x' + Math.round(box.height),
+					clip: getComputedStyle(label).clipPath,
+					wellFromStart: Math.round(well.left - rootBox.left)
+				};
+			});
+			c.info('hidden native label: ' + JSON.stringify(got));
+			if (!got.hiddenClass || !got.labelFor || got.beside !== null || got.labelSize !== '1x1' || got.clip === 'none') throw new Error('label: ' + JSON.stringify(got));
+			if (got.wellFromStart !== 0) throw new Error('the well sits beside a hidden label: ' + JSON.stringify(got));
+		});
 		for (const [label, typed, expect] of [
 			['Project', 'des', 'Design system'],
 			['Project', 'zzz', 'No matches'],
@@ -927,6 +949,16 @@ const drivers = {
 			if (shown !== '50%') throw new Error('shown ' + shown);
 			if ((await box('Zoom').boundingBox()).width !== before) throw new Error('the track changed length with the value');
 		});
+		await c.step("the app's aria-describedby reaches the thumb, after the hint", async () => {
+			const texts = (name) =>
+				field(name).evaluate((n) => (n.getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? '?' + id));
+			const beside = await texts('Min score');
+			if (!same(beside, ['Rows below both limits are hidden.'])) throw new Error('Min score described by ' + JSON.stringify(beside));
+			const hinted = await texts('Hinted');
+			if (!same(hinted, ['A hint of its own.', 'Rows below both limits are hidden.'])) throw new Error('Hinted described by ' + JSON.stringify(hinted));
+			const track = await box('Min score').getAttribute('aria-describedby');
+			if (track !== null) throw new Error('the track area also carries aria-describedby: ' + track);
+		});
 	},
 
 	async tabnav(c) {
@@ -1110,6 +1142,42 @@ const drivers = {
 			const locked = await mutedAtEnd('Locked day');
 			if (locked > 0) throw new Error('a disabled date shows a picker icon (' + locked + ' pixels)');
 		});
+		await c.step('a field with a datalist: no --muted block where Chromium draws its arrow', async () => {
+			// The arrow shows on hover and focus. Before the picker-icon rule was scoped to
+			// the date and time types it became a solid --muted block.
+			const mutedAtEnd = async (loc) => {
+				await loc.focus();
+				if (!c.touch) await loc.hover();
+				await wait(150);
+				const png = (await loc.screenshot()).toString('base64');
+				const width = (await loc.boundingBox()).width;
+				return page.evaluate(async ([b64, cssWidth]) => {
+					const img = new Image();
+					img.src = 'data:image/png;base64,' + b64;
+					await img.decode();
+					const cv = document.createElement('canvas');
+					cv.width = img.width;
+					cv.height = img.height;
+					const cx = cv.getContext('2d');
+					cx.drawImage(img, 0, 0);
+					const scale = img.width / cssWidth;
+					const x0 = Math.floor(img.width - 36 * scale);
+					const d = cx.getImageData(x0, 0, img.width - x0, img.height).data;
+					const hex = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+					const [r, g, bl] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+					let n = 0;
+					for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - r) + Math.abs(d[i + 1] - g) + Math.abs(d[i + 2] - bl) < 30) n++;
+					return n;
+				}, [png, width]);
+			};
+			const n = await mutedAtEnd(field('Suggested'));
+			c.info('Suggested (datalist): ' + n + ' --muted pixels where the arrow is');
+			if (n > 0) throw new Error('a field with a datalist shows a --muted block at its end (' + n + ' pixels)');
+			const plain = await searchCancelDisplay(page, '#plain-datalist', '-webkit-calendar-picker-indicator');
+			if (plain === 'none' || plain === 'absent') throw new Error('control: the plain input\'s arrow is ' + plain);
+			const ours = await searchCancelDisplay(page, '.hp-text-field input[list]', '-webkit-calendar-picker-indicator');
+			if (ours !== 'none') throw new Error('the datalist arrow shows: display ' + ours);
+		});
 		await c.step('an error reaches a typed field', async () => {
 			const d = await attrs(field('Until'), ['aria-invalid']);
 			if (d[0] !== 'true') throw new Error('aria-invalid ' + d);
@@ -1145,12 +1213,17 @@ const drivers = {
 			await field.evaluate((n) => {
 				window.__blurs = 0;
 				n.addEventListener('blur', () => window.__blurs++);
+				// Every `input` and `change` the field fires, with the value it holds then.
+				window.__events = [];
+				for (const type of ['input', 'change']) n.addEventListener(type, () => window.__events.push(`${type}:${n.value}`));
 			});
 			const before = await state();
 			await c.press(clear);
 			const inputs = Number(before.match(/inputs=(\d+)/)[1]);
 			const after = await state();
 			if (after !== `value=[] inputs=${inputs + 1}`) throw new Error(`after clear: "${after}", before "${before}"`);
+			const events = await page.evaluate(() => window.__events.join());
+			if (events !== 'input:,change:') throw new Error(`the clear fired "${events}", not "input:,change:" (an empty value, input then change)`);
 			if (!(await inField())) throw new Error('focus left the field');
 			const blurs = await page.evaluate(() => window.__blurs);
 			if (blurs) throw new Error(`the field blurred ${blurs} times`);
@@ -1163,8 +1236,11 @@ const drivers = {
 				await page.keyboard.press('Tab');
 				const name = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'));
 				if (name !== 'Clear') throw new Error(`Tab reached "${name}", not the clear button`);
+				await page.evaluate(() => (window.__events.length = 0));
 				await page.keyboard.press(key);
 				if (!(await state()).startsWith('value=[] ')) throw new Error(`${key} did not clear: ${await state()}`);
+				const events = await page.evaluate(() => window.__events.join());
+				if (events !== 'input:,change:') throw new Error(`${key} fired "${events}", not "input:,change:"`);
 				if (!(await inField())) throw new Error(`focus after ${key} is not in the field`);
 			}
 		});
@@ -1478,6 +1554,65 @@ const drivers = {
 				if (deco.line !== 'underline' || deco.color !== deco.ink) throw new Error('danger tertiary hover underline: ' + JSON.stringify(deco));
 			});
 		}
+		await c.step('current page: the selection look on secondary and tertiary; none on primary or aria-current="false"; a Menu trigger takes it', async () => {
+			await wait(300);
+			const resolve = (prop, value) =>
+				page.evaluate(
+					([prop, value]) => {
+						const e = document.createElement('i');
+						e.style[prop] = value;
+						document.body.append(e);
+						const r = getComputedStyle(e)[prop];
+						e.remove();
+						return r;
+					},
+					[prop, value]
+				);
+			const look = (selector) =>
+				page.evaluate((selector) => {
+					const s = getComputedStyle(document.querySelector(selector));
+					return { bg: s.backgroundColor, shadow: s.boxShadow };
+				}, selector);
+			const selected = await resolve('backgroundColor', 'var(--surface-selected)');
+			const canvas = await resolve('backgroundColor', 'var(--canvas)');
+			const accentBg = await resolve('backgroundColor', 'var(--accent)');
+			const edge = `${await resolve('color', 'var(--accent)')} 0px -3px 0px 0px inset`;
+			const same = (what, got, want) => {
+				if (got.bg !== want.bg || got.shadow !== want.shadow) throw new Error(`${what}: ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`);
+			};
+			const current = { bg: selected, shadow: edge };
+			same('secondary aria-current="page"', await look('#b-current'), current);
+			same('tertiary aria-current="true"', await look('#b-current-tertiary'), { bg: selected, shadow: edge });
+			same('primary aria-current="page" (no current look)', await look('#b-current-primary'), { bg: accentBg, shadow: 'none' });
+			same('secondary aria-current="false"', await look('#b-current-false'), { bg: canvas, shadow: 'none' });
+			same('Menu trigger with aria-current="page" spread after the trigger props', await look('#current-menu button'), current);
+			const trigger = await page.locator('#current-menu button').evaluate((n) => [n.getAttribute('aria-current'), n.getAttribute('aria-haspopup'), n.getAttribute('aria-expanded')]);
+			if (trigger.join() !== 'page,menu,false') throw new Error('Menu trigger attributes: ' + trigger);
+		});
+		if (!c.touch) {
+			await c.step('current page: hover keeps the tint and the edge stays', async () => {
+				const resolve = (value) =>
+					page.evaluate((value) => {
+						const e = document.createElement('i');
+						e.style.backgroundColor = value;
+						document.body.append(e);
+						const r = getComputedStyle(e).backgroundColor;
+						e.remove();
+						return r;
+					}, value);
+				const hoverTint = await resolve('var(--surface-hover)');
+				for (const id of ['b-current', 'b-current-tertiary']) {
+					await page.locator('#' + id).hover();
+					await wait(300);
+					const s = await page.evaluate((id) => {
+						const e = getComputedStyle(document.getElementById(id));
+						return { bg: e.backgroundColor, shadow: e.boxShadow };
+					}, id);
+					if (s.bg !== hoverTint) throw new Error(`${id} hover fill ${s.bg}, expected --surface-hover ${hoverTint}`);
+					if (!/ 0px -3px 0px 0px inset$/.test(s.shadow)) throw new Error(`${id} hover lost the edge: ${s.shadow}`);
+				}
+			});
+		}
 	},
 
 	async tooltips(c) {
@@ -1651,7 +1786,7 @@ const drivers = {
 
 	// Table's opt-in parts from the shipped package: a sortable header reports
 	// through bind:sort and carries aria-sort while the app reorders; a wide
-	// table scrolls inside a named region that takes focus, with a sticky
+	// table scrolls inside a named group that takes focus (no landmark), with a sticky
 	// first column, scroll edges and a row link across what shows; a row's
 	// detail opens with a fade and closes in the same frame; a column
 	// description opens from a named button; on the phone the stacked list
@@ -1659,7 +1794,7 @@ const drivers = {
 	async table(c) {
 		const { page } = c;
 		const grid = page.getByRole('table', { name: 'Assets', exact: true });
-		const region = page.getByRole('region', { name: 'Assets', exact: true });
+		const region = page.getByRole('group', { name: 'Assets', exact: true });
 		const state = async (sel) => (await page.locator(sel).textContent()).trim();
 		const sizes = () =>
 			grid.evaluate((t) => [...t.querySelectorAll(':scope > tbody > tr:not(.detail) > td:last-child')].map((td) => Number(td.textContent.trim())));
@@ -1682,7 +1817,184 @@ const drivers = {
 			if ((await grid.locator('th[aria-sort]').count()) !== 1) throw new Error('more than one th carries aria-sort');
 		});
 
-		await c.step('wide: a named region, focusable while it scrolls; keys scroll it; the first column stays; edges show', async () => {
+		await c.step('wide: the scroll container is a group, never a region, so a Section of the same name is the only landmark', async () => {
+			if ((await page.getByRole('region', { name: 'Assets', exact: true }).count()) !== 0) throw new Error('the wide table is a region');
+			if ((await region.count()) !== 1) throw new Error('groups named Assets: ' + (await region.count()));
+			const role = await region.getAttribute('role');
+			if (role !== 'group') throw new Error('scroll container role ' + role);
+		});
+
+		// ---- Muted rows and live marks (the Jobs table) ----------------------
+		const token = (name) =>
+			page.evaluate((t) => {
+				const s = document.createElement('span');
+				s.style.color = `var(${t})`;
+				document.body.append(s);
+				const v = getComputedStyle(s).color;
+				s.remove();
+				return v;
+			}, name);
+		// The live marks that show (the grid on a desktop, the stacked list on a phone).
+		const liveMarks = () =>
+			page.evaluate(() =>
+				[...document.querySelectorAll('#jobs .marked[data-live]')]
+					.filter((n) => n.offsetParent !== null)
+					.map((n) => {
+						const s = getComputedStyle(n, '::before');
+						return { paused: n.hasAttribute('data-paused'), animation: s.animationName, duration: s.animationDuration, opacity: parseFloat(s.opacity) };
+					})
+			);
+		// Opacity of the first visible live mark, sampled every frame for `ms`.
+		const sample = (ms) =>
+			page.evaluate(
+				(ms) =>
+					new Promise((resolve) => {
+						const mark = [...document.querySelectorAll('#jobs .marked[data-live]')].find((n) => n.offsetParent !== null);
+						const seen = [];
+						const start = performance.now();
+						const frame = () => {
+							seen.push(parseFloat(getComputedStyle(mark, '::before').opacity));
+							if (performance.now() - start < ms) requestAnimationFrame(frame);
+							else resolve({ min: Math.min(...seen), max: Math.max(...seen) });
+						};
+						requestAnimationFrame(frame);
+					}),
+				ms
+			);
+
+		await c.step('muted rows: data-muted, the row and a Chip, a Status label or a link in it draw in --muted; focus and selection tokens are untouched', async () => {
+			const muted = await token('--muted');
+			const text = await token('--text');
+			const got = await page.evaluate(() => {
+				const shown = (sel) => [...document.querySelectorAll(sel)].filter((n) => n.offsetParent !== null);
+				const chips = shown('#jobs .hp-chip').map((n) => ({ color: getComputedStyle(n).color, muted: !!n.closest('[data-muted]') }));
+				const rows = shown('#jobs tbody tr[data-muted], #jobs .stack li[data-muted]').map((n) => getComputedStyle(n.querySelector('.hp-chip')?.closest('td, .item') ?? n).color);
+				const root = getComputedStyle(document.documentElement);
+				const row = shown('#jobs tbody tr[data-muted], #jobs .stack li[data-muted]')[0];
+				const cs = getComputedStyle(row);
+				return {
+					chips,
+					rows,
+					mutedRows: shown('#jobs tbody tr[data-muted], #jobs .stack li[data-muted]').length,
+					plainRows: shown('#jobs tbody tr:not([data-muted]), #jobs .stack li:not([data-muted])').length,
+					accent: cs.getPropertyValue('--accent') === root.getPropertyValue('--accent'),
+					focus: cs.getPropertyValue('--focus') === root.getPropertyValue('--focus')
+				};
+			});
+			c.info('muted rows: ' + JSON.stringify(got));
+			if (got.mutedRows !== 2 || got.plainRows !== 1) throw new Error('muted/plain rows: ' + JSON.stringify(got));
+			if (got.chips.length !== 3) throw new Error('chips: ' + JSON.stringify(got.chips));
+			for (const chip of got.chips) {
+				const want = chip.muted ? muted : text;
+				if (chip.color !== want) throw new Error(`a ${chip.muted ? 'muted' : 'plain'} row's Chip is ${chip.color}, want ${want}`);
+			}
+			if (got.rows.some((r) => r !== muted)) throw new Error('muted row text: ' + JSON.stringify(got.rows));
+			if (!got.accent || !got.focus) throw new Error('a muted row changed --accent or --focus');
+		});
+
+		await c.step('live mark: the shipped CSS pulses opacity from 1 to 0.4 over --dur-pulse, ease-in-out, on live rows only', async () => {
+			const marks = await liveMarks();
+			if (marks.length !== 2) throw new Error('live marks that show: ' + JSON.stringify(marks));
+			const s = parseFloat(marks[0].duration) * (marks[0].duration.endsWith('ms') ? 1 : 1000);
+			const seen = await sample(2600);
+			c.info(`live mark: ${marks[0].animation}, ${marks[0].duration}, opacity ${seen.min.toFixed(2)} to ${seen.max.toFixed(2)}`);
+			if (marks[0].animation === 'none' || !(s >= 2000)) throw new Error('no slow pulse: ' + JSON.stringify(marks));
+			if (!(seen.min < 0.5 && seen.min >= 0.39 && seen.max > 0.95)) throw new Error('opacity did not cycle 1 to 0.4: ' + JSON.stringify(seen));
+			const unlit = await page.evaluate(() =>
+				[...document.querySelectorAll('#jobs .marked[data-tone]:not([data-live])')].filter((n) => n.offsetParent !== null).map((n) => getComputedStyle(n, '::before').animationName)
+			);
+			if (unlit.length !== 1 || unlit[0] !== 'none') throw new Error('the failed row pulses: ' + unlit);
+		});
+
+		await c.step('<Motion paused> holds a live mark still and lit; resuming starts the pulse again', async () => {
+			await c.press(page.getByRole('button', { name: 'Pause jobs' }));
+			await wait(150);
+			const all = await liveMarks();
+			const seen = await sample(1200);
+			if (all.some((m) => !m.paused || m.animation !== 'none')) throw new Error('paused marks: ' + JSON.stringify(all));
+			if (seen.min !== 1 || seen.max !== 1) throw new Error('a paused mark moved: ' + JSON.stringify(seen));
+			await c.press(page.getByRole('button', { name: 'Resume jobs' }));
+			await wait(150);
+			const again = await liveMarks();
+			const cycled = await sample(2600);
+			if (again.some((m) => m.paused || m.animation === 'none') || !(cycled.min < 0.5)) throw new Error('no pulse after resume: ' + JSON.stringify([again, cycled]));
+		});
+
+		await c.step('reduced motion stops the live mark with no help from the app', async () => {
+			await page.emulateMedia({ reducedMotion: 'reduce' });
+			try {
+				await wait(150);
+				const all = await liveMarks();
+				const seen = await sample(1200);
+				if (all.some((m) => m.animation !== 'none')) throw new Error('animated under reduced motion: ' + JSON.stringify(all));
+				if (seen.min !== 1 || seen.max !== 1) throw new Error('a mark moved under reduced motion: ' + JSON.stringify(seen));
+			} finally {
+				await page.emulateMedia({ reducedMotion: 'no-preference' });
+			}
+		});
+
+		await c.step('column description button: 16px in the layout, a --hit-target square by ::before, never over a neighbouring control', async () => {
+			const th = grid.locator('th').filter({ has: page.getByRole('button', { name: 'About Size', exact: true }) });
+			const about = th.getByRole('button', { name: 'About Size', exact: true });
+			await about.scrollIntoViewIfNeeded();
+			const got = await about.evaluate((a) => {
+				const sort = a.closest('th').querySelector('.sort');
+				const target = parseFloat(getComputedStyle(a, '::before').height);
+				const ar = a.getBoundingClientRect();
+				const sr = sort.getBoundingClientRect();
+				const y = ar.top + ar.height / 2;
+				// Which control answers at each half pixel along the row, from well before the pair to well after.
+				const lo = Math.floor(Math.min(ar.left, sr.left) - 60);
+				const hi = Math.ceil(Math.max(ar.right, sr.right) + 60);
+				const owner = (x) => {
+					const el = document.elementFromPoint(x, y);
+					return el === a ? 'about' : sort.contains(el) ? 'sort' : 'other';
+				};
+				let aboutFrom = null, aboutTo = null, sortOverlap = 0, sortMissing = 0;
+				for (let x = lo; x <= hi; x += 0.5) {
+					const o = owner(x);
+					if (o === 'about') { aboutFrom ??= x; aboutTo = x; }
+					if (o === 'about' && x >= sr.left && x < sr.right) sortOverlap++;
+					if (x >= sr.left + 0.5 && x < sr.right - 0.5 && o !== 'sort') sortMissing++;
+				}
+				// Up and down from the centre: the height of the answer.
+				let top = 0, bottom = 0;
+				const cx = ar.left + ar.width / 2;
+				for (let d = 0; d < 40; d += 0.5) {
+					if (document.elementFromPoint(cx, y - d) === a) top = d;
+					if (document.elementFromPoint(cx, y + d) === a) bottom = d;
+				}
+				return { w: ar.width, h: ar.height, hitW: aboutTo - aboutFrom + 0.5, hitH: top + bottom + 0.5, sortOverlap, sortMissing };
+			});
+			const hit = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hit-target')));
+			c.info('about hit area: ' + JSON.stringify(got) + ', --hit-target ' + hit);
+			if (got.w !== 16 || got.h !== 16) throw new Error('the button is not its 16px icon: ' + JSON.stringify(got));
+			if (got.hitW < hit - 1 || got.hitH < hit - 1) throw new Error('hit area under --hit-target: ' + JSON.stringify(got));
+			if (got.sortOverlap || got.sortMissing) throw new Error('the description overlaps the sort button: ' + JSON.stringify(got));
+		});
+
+		await c.step('stacked list: a mark clears the field label by 8px or more (the mark hangs 16px, the gap is 24px)', async () => {
+			const got = await page.evaluate(() =>
+				[...document.querySelectorAll('#jobs .stack .item-fields > div')]
+					.filter((div) => div.offsetParent !== null && div.querySelector('.marked'))
+					.map((div) => {
+						const label = document.createRange();
+						label.selectNodeContents(div.querySelector('dt'));
+						const text = document.createRange();
+						text.selectNodeContents(div.querySelector('.marked'));
+						const before = getComputedStyle(div.querySelector('.marked'), '::before');
+						// The mark ends margin-right before the text and is width wide.
+						const markLeft = text.getBoundingClientRect().left - parseFloat(before.marginRight) - parseFloat(before.width);
+						const labelRight = label.getBoundingClientRect().right;
+						return { labelRight, markLeft, clear: markLeft - labelRight, marked: div.closest('.item-fields').hasAttribute('data-marked') };
+					})
+			);
+			c.info('stacked mark clearance: ' + JSON.stringify(got));
+			if (c.touch && got.length === 0) throw new Error('no marked field in the stacked list');
+			if (got.some((g) => !g.marked || g.clear < 7.5)) throw new Error('the mark touches the label: ' + JSON.stringify(got));
+		});
+
+		await c.step('wide: a named group, focusable while it scrolls; keys scroll it; the first column stays; edges show', async () => {
 			await region.evaluate((n) => (n.scrollLeft = 0));
 			await wait(200);
 			const info = await region.evaluate((n) => ({ tabindex: n.getAttribute('tabindex'), sw: n.scrollWidth, cw: n.clientWidth }));
@@ -1849,7 +2161,7 @@ const drivers = {
 			}, name);
 		await c.step('each section is a region named by its heading; titleAs, id and the title role', async () => {
 			const got = await page.evaluate(() =>
-				[...document.querySelectorAll('section.hp-section')].map((s) => {
+				[...document.querySelectorAll('#wide section.hp-section, #narrow section.hp-section')].map((s) => {
 					const h = document.getElementById(s.getAttribute('aria-labelledby') || '');
 					return { id: s.id, name: h?.textContent, tag: h?.tagName, role: !!h?.classList.contains('hp-section-title'), size: h && getComputedStyle(h).fontSize };
 				})
@@ -1939,6 +2251,24 @@ const drivers = {
 			if (short.titleLines < 2 || !short.metaUnder || !short.actionsUnder || !short.actionsInside || g.overflow) throw new Error('wrap, short meta: ' + JSON.stringify(g));
 			if (!long.metaUnder || !long.actionsBelowMeta || !long.actionsAtStart) throw new Error('wrap, long meta: ' + JSON.stringify(g));
 		});
+		await c.step('role none or presentation: no landmark and no name on the section, the heading stays', async () => {
+			for (const [title, role] of [['Plain group', 'none'], ['Presentational group', 'presentation']]) {
+				const sec = page.locator('#roles > section', { has: page.getByRole('heading', { name: title, exact: true }) });
+				const got = await sec.evaluate((n) => ({ role: n.getAttribute('role'), labelledby: n.hasAttribute('aria-labelledby'), name: n.hasAttribute('aria-label') }));
+				if (got.role !== role || got.labelledby || got.name) throw new Error(`${title}: ${JSON.stringify(got)}`);
+				if ((await page.getByRole('region', { name: title, exact: true }).count()) !== 0) throw new Error(`${title} is still a region`);
+				if ((await page.getByRole('heading', { name: title, exact: true }).count()) !== 1) throw new Error(`${title}: the heading is gone`);
+			}
+			// The accessibility snapshot lists the two sections' headings but no region for them.
+			const snapshot = await page.locator('#roles').ariaSnapshot();
+			c.info('roles snapshot: ' + snapshot.replace(/\n/g, ' | '));
+			if (/region "(Plain|Presentational) group"/.test(snapshot)) throw new Error('region in the snapshot: ' + snapshot);
+		});
+		await c.step('a wide Table inside a Section of the same name shows once in the landmark list', async () => {
+			const regions = await page.getByRole('region', { name: 'Wide files', exact: true }).count();
+			const groups = await page.getByRole('group', { name: 'Wide files', exact: true }).count();
+			if (regions !== 1 || groups !== 1) throw new Error(`regions ${regions}, groups ${groups}`);
+		});
 	},
 
 	async status(c) {
@@ -1990,6 +2320,34 @@ const drivers = {
 			if (got.map((g) => g.bg).join() !== want.join()) throw new Error(`marks ${got.map((g) => g.bg)} vs ${want}`);
 			if (got.some((g) => g.hidden !== 'true' || g.size !== '8x8' || g.live)) throw new Error('mark: ' + JSON.stringify(got));
 			if (got.map((g) => g.text).join() !== 'Online,Behind,Down,Idle') throw new Error('labels: ' + got.map((g) => g.text));
+		});
+		await c.step('a Stat with children: the Status renders inside the value dd at the value font size; the unit and the delta still show; no tick markup', async () => {
+			const got = await page.evaluate(() =>
+				[...document.querySelectorAll('#stats .hp-stat')].map((n) => {
+					const dd = n.querySelector('dd.hp-stat-value');
+					const status = dd.querySelector('.hp-status');
+					return {
+						label: n.querySelector('dt').textContent,
+						inside: !!status && dd.contains(status),
+						font: status ? getComputedStyle(status).fontSize : null,
+						ddFont: getComputedStyle(dd).fontSize,
+						figure: !!dd.querySelector('.hp-stat-figure'),
+						unit: dd.querySelector('.hp-stat-unit')?.textContent ?? null,
+						delta: n.querySelector('dd.hp-stat-delta')?.textContent.trim() ?? null,
+						display: dd.classList.contains('hp-display')
+					};
+				})
+			);
+			const [standard, display, number] = got;
+			if (!standard.inside || standard.figure) throw new Error('standard: ' + JSON.stringify(standard));
+			if (!display.inside || display.figure || !display.display) throw new Error('display: ' + JSON.stringify(display));
+			if (standard.font !== standard.ddFont) throw new Error(`the Status is ${standard.font}, the value's size is ${standard.ddFont}`);
+			if (display.font !== display.ddFont) throw new Error(`the display Status is ${display.font}, the value's size is ${display.ddFont}`);
+			// The display size is larger than the standard one, and a number value has the same font as the display Status.
+			if (!(parseFloat(display.font) > parseFloat(standard.font))) throw new Error('display not larger: ' + JSON.stringify([standard.font, display.font]));
+			if (display.font !== number.ddFont) throw new Error(`display Status ${display.font} differs from a display number's ${number.ddFont}`);
+			if (standard.unit !== 'jobs' || !standard.delta?.startsWith('+2')) throw new Error('unit and delta: ' + JSON.stringify(standard));
+			c.info(`Stat children: standard ${standard.font}, display ${display.font}`);
 		});
 		await c.step('live: the shipped CSS pulses opacity slowly (cycle of 2s or more, 0.4 at the low point)', async () => {
 			const [first] = await marks();
@@ -2533,6 +2891,60 @@ const drivers = {
 
 	async shell(c) {
 		const { page } = c;
+		if (c.variant === 'long' || c.variant === 'wide') {
+			const wide = c.variant === 'wide';
+			await c.step('long labels without icons wrap to two lines at spaces, balanced; one word wider than the cell ends in an ellipsis; a label with an icon keeps one line', async () => {
+				await wait(300);
+				const cells = await page.evaluate(() =>
+					[...document.querySelectorAll('.hp-app-shell-bar .link, .hp-app-shell-side .link')]
+						.filter((n) => n.offsetParent)
+						.map((n) => {
+							const t = n.querySelector('.text');
+							const lh = parseFloat(getComputedStyle(t).lineHeight);
+							const r = n.getBoundingClientRect();
+							return {
+								text: t.textContent,
+								icon: !!n.querySelector('.icon'),
+								lines: Math.round(t.getBoundingClientRect().height / lh),
+								cut: t.scrollWidth > t.clientWidth,
+								cell: [Math.round(r.width), Math.round(r.height)],
+								align: getComputedStyle(t).textAlign,
+								wrap: getComputedStyle(t).textWrapStyle
+							};
+						})
+				);
+				c.info('shell labels: ' + JSON.stringify(cells.map((x) => [x.text, x.lines, x.cut, x.cell.join('x')])));
+				const by = Object.fromEntries(cells.map((x) => [x.text, x]));
+				// In the 128px rail (desktop) "Breaking now" and "Recent files" fit on one line; elsewhere they wrap to two.
+				const fits = wide && !c.touch;
+				for (const name of ['Breaking now', 'Saved searches', 'Recent files']) {
+					const want = fits && name !== 'Saved searches' ? [1] : fits ? [1, 2] : [2];
+					if (!by[name] || !want.includes(by[name].lines) || by[name].cut) throw new Error(name + ': ' + JSON.stringify(by[name]));
+					if (by[name].align !== 'center' || by[name].wrap !== 'balance') throw new Error(name + ' is not centred and balanced: ' + JSON.stringify(by[name]));
+				}
+				if (wide) {
+					// A single word that fits the wider rail needs no ellipsis, and the whole cell is wider than 80px.
+					if (c.touch) return;
+					if (by.Opportunities.cut || by.Opportunities.lines !== 1) throw new Error('Opportunities in the wide rail: ' + JSON.stringify(by.Opportunities));
+					if (by.Opportunities.cell[0] !== 128) throw new Error('rail cell width ' + by.Opportunities.cell);
+				} else if (!by.Opportunities.cut || by.Opportunities.lines !== 1) {
+					throw new Error('a word wider than the cell must end in an ellipsis on one line: ' + JSON.stringify(by.Opportunities));
+				}
+				if (by['Account settings'].lines !== 1 || !by['Account settings'].icon) throw new Error('with an icon: ' + JSON.stringify(by['Account settings']));
+				for (const x of cells) if (x.cell[1] < 56) throw new Error(x.text + ' cell is shorter than the header: ' + x.cell);
+			});
+			if (wide && !c.touch) {
+				await c.step('--rail-width moves the rail, the controls row and main together', async () => {
+					const g = await page.evaluate(() => {
+						const w = (sel) => document.querySelector(sel).getBoundingClientRect();
+						return { rail: w('.hp-app-shell-side').width, controls: getComputedStyle(document.querySelector('.hp-app-shell-controls')).marginLeft, main: getComputedStyle(document.querySelector('.hp-app-shell-main')).marginLeft };
+					});
+					// The controls row sits in the header from 1200px and takes no margin; main follows the rail.
+					if (g.rail !== 128 || g.main !== '128px') throw new Error('rail and main: ' + JSON.stringify(g));
+				});
+			}
+			return;
+		}
 		if (c.variant === 'drawer') {
 			// From 600px the menu button is hidden, and the drawer never opens.
 			const menu = page.getByRole('button', { name: 'Menu', exact: true, includeHidden: true });
@@ -2569,7 +2981,9 @@ const variants = {
 	],
 	shell: [
 		['?compact=bar&wide=sidebar', 'bar-sidebar'],
-		['?compact=drawer&wide=rail', 'drawer-rail']
+		['?compact=drawer&wide=rail', 'drawer-rail'],
+		['?compact=bar&wide=rail&labels=long', 'long-rail'],
+		['?compact=bar&wide=rail&labels=long&rail=wide', 'wide-rail']
 	]
 };
 

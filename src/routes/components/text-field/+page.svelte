@@ -118,8 +118,17 @@
 			<li>
 				<strong>Search.</strong> With <code>type="search"</code> a clear button replaces the
 				browser's own while the field holds text; <code>clearLabel</code> names it (default
-				<code>Clear</code>). It empties the field, fires <code>input</code> and leaves focus in the
-				field. In a toolbar, <code>labelHidden</code> keeps the label as the field's name but hides it.
+				<code>Clear</code>). It empties the field, fires <code>input</code> and then
+				<code>change</code>, and leaves focus in the field. The <code>change</code> is for an app that
+				commits a search on <code>change</code> (Enter or blur after typing): it sees the clear
+				too, and the clear never needs a handler of its own. In a toolbar, <code>labelHidden</code>
+				keeps the label as the field's name but hides it.
+			</li>
+			<li>
+				<strong>Suggestions.</strong> A <code>list</code> attribute points at a
+				<code>&lt;datalist&gt;</code> the app renders. The well stays a plain text well: Chromium’s own
+				arrow at its end is hidden, and suggestions show as you type and with <kbd>↓</kbd>. See
+				<a href="#suggestions">Suggestions</a>.
 			</li>
 		</ul>
 	</section>
@@ -281,6 +290,23 @@
 				<li aria-current={hits[current] === i ? 'true' : undefined}>{task}</li>
 			{/each}
 		</ul>
+	</section>
+
+	<section aria-labelledby="suggestions">
+		<h2 id="suggestions" class="hp-section-title">Suggestions</h2>
+		<p class="lede">
+			A field with a <code>list</code>. The browser offers the datalist’s options while you type. The
+			arrow Chromium draws at the end of such a field stays hidden, so the well looks like any other.
+		</p>
+		<div class="form">
+			<TextField label="Country" list="country-suggestions" placeholder="Start typing" autocomplete="off" />
+			<datalist id="country-suggestions">
+				<option value="Germany"></option>
+				<option value="Greece"></option>
+				<option value="Ghana"></option>
+				<option value="France"></option>
+			</datalist>
+		</div>
 	</section>
 
 	<section aria-labelledby="numbers">

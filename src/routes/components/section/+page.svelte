@@ -168,8 +168,10 @@
 		<ul class="notes">
 			<li>
 				The section is a region labelled by its title, so a screen reader lists it among the landmarks.
-				A page with many sections gets a long landmark list. Pass <code>role="none"</code> to a section
-				that does not need one: the heading still marks it.
+				A page with many sections gets a long landmark list. Pass <code>role="none"</code> or
+				<code>role="presentation"</code> to a section that does not need one. The section then leaves out
+				<code>aria-labelledby</code> as well, because a browser keeps a named section a region whatever
+				role it has; the heading still marks it.
 			</li>
 			<li>
 				The title is a real heading. Keep the levels in order: a Section inside a Section takes the next
@@ -182,6 +184,11 @@
 			</li>
 			<li>A Section has no motion.</li>
 		</ul>
+		<div class="nested">
+			<Section title="Grouping only" meta="role=none" role="none">
+				<p class="text">This section is not in the landmark list. Its heading is still a heading.</p>
+			</Section>
+		</div>
 	</section>
 </main>
 

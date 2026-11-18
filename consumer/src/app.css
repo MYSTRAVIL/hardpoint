@@ -79,3 +79,8 @@ own-row {
 .toolbar-row > .hp-text-field {
 	flex: 0 1 12rem;
 }
+
+/* An app makes room for a long single word in the rail with its token. */
+.wide-rail {
+	--rail-width: 128px;
+}

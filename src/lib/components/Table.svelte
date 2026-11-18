@@ -46,6 +46,14 @@
 		 */
 		mark?: (row: Row) => TableMark | undefined;
 		/**
+		 * Makes this row's mark pulse slowly, as Status `live` does: work in
+		 * progress. It needs a `mark` that returns a hue for the row. The
+		 * pulse holds still (the mark stays lit) under reduced motion and
+		 * while the app sets `<Motion paused>`; an app that shows a live
+		 * mark also offers a visible control that sets it.
+		 */
+		markLive?: (row: Row) => boolean;
+		/**
 		 * The header label becomes a button that sorts by this column, and
 		 * the stacked list gets a sort select. The first press sorts in
 		 * `sortFirst` order, the next ones reverse it. Table reports the sort
@@ -90,6 +98,7 @@
 		label,
 		variant = 'plain',
 		selected,
+		muted,
 		rowHref,
 		stack,
 		total,
@@ -120,6 +129,12 @@
 		variant?: TableVariant;
 		/** The key of the current row: a 3px titanium edge and the selected tint. */
 		selected?: Row[Key];
+		/**
+		 * Shows a row de-emphasised, in `--muted`: its text and everything in
+		 * it that draws in `--text` (a Chip, a Status label, a link). Status
+		 * marks keep their hue.
+		 */
+		muted?: (row: Row) => boolean;
 		/** Makes each whole row one link to this address. */
 		rowHref?: (row: Row) => string;
 		/**
@@ -139,7 +154,7 @@
 		sort?: TableSort<Row>;
 		/**
 		 * A data grid. Cells keep their natural width and never truncate; the
-		 * table scrolls sideways inside a focusable region, with a sticky
+		 * table scrolls sideways inside a focusable group, with a sticky
 		 * first column and a scroll edge, and on compact widths it scrolls
 		 * too instead of stacking.
 		 */
@@ -326,7 +341,12 @@
 
 {#snippet content(row: Row, column: Column<Row>)}
 	{#if column.mark}
-		<span class="marked" data-tone={column.mark(row)}>{@render cellValue(row, column)}</span>
+		<span
+			class="marked"
+			data-tone={column.mark(row)}
+			data-live={column.markLive?.(row) ? '' : undefined}
+			data-paused={column.markLive?.(row) && motion.paused ? '' : undefined}
+		>{@render cellValue(row, column)}</span>
 	{:else}
 		{@render cellValue(row, column)}
 	{/if}
@@ -387,7 +407,7 @@
 
 {#snippet item(row: Row, i: number)}
 	<span class="item-title" id={detail ? partId('title', 's', i) : undefined}>{@render content(row, stackTitle)}</span>
-	<dl class="item-fields">
+	<dl class="item-fields" data-marked={stackFields.some((column) => column.mark) ? '' : undefined}>
 		{#each stackFields as column (column.key)}
 			<div>
 				<dt class="hp-label">{column.label}</dt>
@@ -447,6 +467,7 @@
 					class={[entering?.has(row[key]) && 'hp-enter']}
 					style:--i={entering?.get(row[key])}
 					data-selected={isSelected(row) ? '' : undefined}
+					data-muted={muted?.(row) ? '' : undefined}
 					data-expanded={open ? '' : undefined}
 					aria-current={isSelected(row) ? 'true' : undefined}
 				>
@@ -477,13 +498,14 @@
 
 <div {...rest} bind:this={root} class={['hp-table', className]} data-variant={variant} data-wide={wide ? '' : undefined}>
 	{#if wide}
-		<!-- A data grid: it scrolls sideways inside a named region, which takes
-		     focus while it scrolls, so arrow keys move it. -->
+		<!-- A data grid: it scrolls sideways inside a named group, which takes
+		     focus while it scrolls, so arrow keys move it. A group, not a region:
+		     a wide table inside a Section of the same name is one landmark. -->
 		<div class="frame" data-overflow-start={hiddenStart ? '' : undefined} data-overflow-end={hiddenEnd ? '' : undefined}>
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 			<div
 				class="scroller"
-				role="region"
+				role="group"
 				aria-label={label}
 				tabindex={scrolls ? 0 : undefined}
 				bind:this={scroller}
@@ -537,6 +559,7 @@
 						class={[entering?.has(row[key]) && 'hp-enter']}
 						style:--i={entering?.get(row[key])}
 						data-selected={isSelected(row) ? '' : undefined}
+						data-muted={muted?.(row) ? '' : undefined}
 						data-expanded={detail && isExpanded(row) ? '' : undefined}
 						aria-current={isSelected(row) ? 'true' : undefined}
 					>
@@ -613,13 +636,18 @@
 		font-variant-numeric: tabular-nums;
 	}
 
-	/* The one band. It pins under the shell's header row. */
-	thead th {
+	/* The one band. It pins under the shell's header row, and it is one
+	   fill on the thead: with a sticky cell each, a cell edge at a
+	   fractional pixel on a 2x screen could leave a 1px gap of canvas
+	   between two cells. */
+	thead {
 		position: sticky;
 		top: calc(var(--header-height) + env(safe-area-inset-top));
 		z-index: var(--layer-sticky);
-		height: 36px;
 		background: var(--surface-band);
+	}
+	thead th {
+		height: 36px;
 		color: var(--text);
 	}
 	/* Space between the band and the first row, not a line. */
@@ -674,6 +702,18 @@
 		box-shadow: inset 3px 0 0 var(--accent);
 	}
 
+	/* A muted row: --text becomes --muted for the row, the way
+	   [data-density] scopes a token, so a Chip, a Status label and a link in
+	   it follow. Inherited text takes the colour directly, because body's
+	   `color` was computed from --text once. Focus (--focus), the selected
+	   edge (--accent), the tints and the status marks are other tokens and
+	   stay as they are. The detail row is a sibling and keeps its ink. */
+	tbody tr[data-muted],
+	.stack > li[data-muted] > .item {
+		--text: var(--muted);
+		color: var(--muted);
+	}
+
 	/* Ruled: 1px dividers between rows, drawn as shadows so the pitch
 	   stays even. A row and its detail share one block, so no divider
 	   between them. Child combinators keep the rule off a Table nested in
@@ -726,6 +766,20 @@
 	}
 	.marked[data-tone='danger']::before {
 		background: var(--danger);
+	}
+
+	/* A live mark pulses like Status `live`: opacity 1 to 0.4 over
+	   --dur-pulse. Off while paused and under reduced motion, where the
+	   mark stays lit. */
+	@media (prefers-reduced-motion: no-preference) {
+		.marked[data-live]:not([data-paused])::before {
+			animation: pulse var(--dur-pulse) ease-in-out infinite;
+		}
+	}
+	@keyframes pulse {
+		50% {
+			opacity: 0.4;
+		}
 	}
 
 	/* ---- Header controls: sort buttons and descriptions ------------------ */
@@ -831,14 +885,17 @@
 		text-underline-offset: 0.3em;
 	}
 
-	/* The description button: the square info mark in --muted, the label's
-	   colour on hover, on a press and while its popover is open. */
+	/* The description button takes its 16px icon in the column's layout,
+	   and no more. Its --hit-target square comes from ::before, centred on
+	   the mark and drawn over the gap and the cell's padding. The icon is
+	   ::after. Colour: --muted, the label's colour on hover, on a press
+	   and while its popover is open. */
 	.about {
-		display: grid;
+		position: relative;
+		display: block;
 		flex: none;
-		place-items: center;
-		width: var(--hit-target);
-		height: var(--hit-target);
+		width: 16px;
+		height: 16px;
 		padding: 0;
 		border: 0;
 		background: none;
@@ -846,12 +903,30 @@
 		cursor: pointer;
 		-webkit-tap-highlight-color: transparent;
 	}
-	.about::before {
+	.about::after {
 		content: '';
-		width: 16px;
-		height: 16px;
+		position: absolute;
+		inset: 0;
 		background-color: currentColor;
 		mask: var(--status-mark) center / 16px 16px no-repeat;
+	}
+	.about::before {
+		content: '';
+		position: absolute;
+		top: 50%;
+		height: max(100%, var(--hit-target));
+		translate: 0 -50%;
+		inset-inline: calc(-1 * (var(--hit-target) - 16px) / 2);
+	}
+	/* The target is centred on the mark, so the gap to the label opens to
+	   half of what the target adds: 4px with a mouse (24px target), 14px on
+	   touch (44px target). The target then stops where the label's button
+	   begins, and on the other side it ends in the cell's padding (24px). */
+	th:not([data-align='end']) .about {
+		margin-inline-start: calc((var(--hit-target) - 16px) / 2 - var(--space-1));
+	}
+	th[data-align='end'] .about {
+		margin-inline-end: calc((var(--hit-target) - 16px) / 2 - var(--space-1));
 	}
 	@media (hover: hover) and (pointer: fine) {
 		.about:hover {
@@ -863,7 +938,7 @@
 		color: var(--text);
 	}
 	.about:focus-visible {
-		outline-offset: -2px;
+		outline-offset: 2px;
 	}
 	.about-text {
 		font-family: var(--sans);
@@ -960,7 +1035,7 @@
 	}
 	/* A Table nested in a detail keeps its band in place: two bands pinned
 	   under the header would cover each other. */
-	.detail-body .grid > thead > tr > th {
+	.detail-body .grid > thead {
 		position: static;
 	}
 
@@ -1027,11 +1102,12 @@
 	   top of the table instead of pinning under the header. The first
 	   column stays at the start; an opaque fill hides what scrolls under
 	   it, and it follows the row's hover, press and selection. */
-	.scroller > .grid > thead > tr > th {
+	.scroller > .grid > thead {
 		position: static;
 	}
 	.scroller > .grid > thead > tr > th:first-child {
 		position: sticky;
+		background: var(--surface-band);
 		top: auto;
 		inset-inline-start: 0;
 		z-index: 1;
@@ -1164,9 +1240,16 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	/* The mark hangs into the gap before the value. */
+	/* The mark hangs 16px left of the value, and the gap before the value is
+	   12px. In a list with a marked field every label keeps 12px of padding
+	   inside the label column, so the mark clears the longest label by 8px
+	   and every value still keeps one edge. A label shorter than the
+	   column's 72px minimum has room already and nothing moves. */
 	.item-fields dd[data-mark] {
 		overflow: visible;
+	}
+	.item-fields[data-marked] dt {
+		padding-inline-end: var(--space-3);
 	}
 
 	@media (hover: hover) and (pointer: fine) {

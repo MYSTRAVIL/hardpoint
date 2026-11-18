@@ -40,6 +40,11 @@
 	}: SectionProps = $props();
 
 	const uid = $props.id();
+
+	// A named section with a presentational role stays a region in Chromium
+	// (ARIA's conflict rule keeps the role a name implies), so the name goes
+	// with the opt-out.
+	const landmark = $derived(rest.role !== 'none' && rest.role !== 'presentation');
 </script>
 
 <!--
@@ -55,8 +60,15 @@
 	The body has no padding and clips nothing, so content keeps the page edge
 	and a Table in it bleeds its band into the gutter as it does anywhere.
 	The section is a landmark region named by its title (`aria-labelledby`).
+	With role="none" or role="presentation" it is no landmark: the name is
+	left out too, and the heading stays.
 -->
-<section {...rest} bind:this={ref} class={['hp-section', className]} aria-labelledby="{uid}-title">
+<section
+	{...rest}
+	bind:this={ref}
+	class={['hp-section', className]}
+	aria-labelledby={landmark ? `${uid}-title` : undefined}
+>
 	<header class="head">
 		<svelte:element this={titleAs} id="{uid}-title" class="hp-section-title title">{title}</svelte:element>
 		{#if meta}

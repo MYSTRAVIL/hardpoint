@@ -1,7 +1,7 @@
 // Type-level checks on the shipped declarations. svelte-check compiles this
 // file, so it fails when an accessible name stops being required or when a
 // primary Button accepts a tone. Nothing here runs.
-import type { ButtonProps, MeterProps, ProgressProps, SliderProps, TabNavProps, TextFieldType } from '@mystravil/hardpoint';
+import type { ButtonProps, MeterProps, StatProps, ProgressProps, SliderProps, TabNavProps, TextFieldType } from '@mystravil/hardpoint';
 
 // @ts-expect-error an icon button needs an accessible name
 export const iconWithoutName: ButtonProps = { icon: true };
@@ -61,3 +61,26 @@ export const sortUnknownKey: TableSort<FileRow> = { key: 'owner', direction: 'as
 // @ts-expect-error the direction is aria-sort's word
 export const sortShortDirection: TableSort<FileRow> = { key: 'size', direction: 'desc' };
 export const sortBySize: TableSort<FileRow> = { key: 'size', direction: 'descending' };
+
+// Stat: the value is `value` or `children`, exactly one.
+import type { Snippet } from 'svelte';
+declare const valueMarkup: Snippet;
+// @ts-expect-error value and children together
+export const statBoth: StatProps = { label: 'A', value: 1, children: valueMarkup };
+// @ts-expect-error neither a value nor children
+export const statNeither: StatProps = { label: 'A' };
+export const statValue: StatProps = { label: 'A', value: '1,204', unit: 'jobs', delta: 2 };
+export const statMarkup: StatProps = { label: 'A', children: valueMarkup, unit: 'jobs', delta: 2, variant: 'display' };
+
+// A column's live mark answers a boolean for the row.
+import type { Column } from '@mystravil/hardpoint';
+export const liveColumn: Column<FileRow> = { key: 'size', label: 'Size', mark: () => 'ok', markLive: (row) => row.size > 0 };
+// @ts-expect-error markLive answers a boolean
+export const liveColumnWrong: Column<FileRow> = { key: 'size', label: 'Size', markLive: () => 'yes' };
+
+// NativeSelect's label can be hidden, and a hidden label overrides labelBeside.
+import type { ComponentProps } from 'svelte';
+import type { NativeSelect } from '@mystravil/hardpoint';
+export const nativeSelectHidden: ComponentProps<typeof NativeSelect> = { label: 'Sort', labelHidden: true, labelBeside: 'medium', items: [{ value: 'a', label: 'A' }] };
+// @ts-expect-error labelHidden is a boolean
+export const nativeSelectHiddenWrong: ComponentProps<typeof NativeSelect> = { label: 'Sort', labelHidden: 'yes' };

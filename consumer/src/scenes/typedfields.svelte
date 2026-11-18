@@ -26,6 +26,10 @@
 		<span id="form-state">inForm=[{inForm}]</span>
 	</form>
 	<TextField label="Locked day" type="date" value="2026-11-18" disabled />
+	<!-- A field with a datalist: Chromium's own arrow stays hidden. The plain input is the control. -->
+	<TextField label="Suggested" list="suggested-list" placeholder="Pick or type" />
+	<datalist id="suggested-list"><option value="Alpha"></option><option value="Beta"></option></datalist>
+	<input id="plain-datalist" list="suggested-list" aria-label="Plain datalist" />
 	<div class="row">
 		<Button onclick={() => (seats = '42')}>Set seats</Button>
 		<Button onclick={() => (weight = '')}>Clear weight</Button>

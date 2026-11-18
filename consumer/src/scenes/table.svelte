@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Table, Tag, type Column, type TableSort } from '@mystravil/hardpoint';
+	import { Button, Chip, Table, Tag, type Column, type TableSort } from '@mystravil/hardpoint';
+	import { Motion } from '@mystravil/hardpoint/motion';
 
 	type Asset = {
 		id: string;
@@ -63,6 +64,25 @@
 	let stackOpen = $state<string[]>([]);
 	const wideRows = $derived(order(assets, wideSort));
 	const stackRows = $derived(order(assets, stackSort));
+
+	// Muted rows and live marks: two lower-ranked jobs, one of them running.
+	type Job = { id: string; name: string; state: 'running' | 'queued' | 'failed'; tag: string };
+	const jobs: Job[] = [
+		{ id: 'J-1', name: 'Index the archive', state: 'running', tag: 'Primary' },
+		{ id: 'J-2', name: 'Rebuild thumbnails', state: 'running', tag: 'Low' },
+		{ id: 'J-3', name: 'Export the report', state: 'failed', tag: 'Low' }
+	];
+	const jobColumns: Column<Job>[] = [
+		{ key: 'name', label: 'Job' },
+		{
+			key: 'state',
+			label: 'State',
+			mark: (row) => (row.state === 'failed' ? 'danger' : 'ok'),
+			markLive: (row) => row.state === 'running'
+		},
+		{ key: 'tag', label: 'Tag' }
+	];
+	let paused = $state(false);
 </script>
 
 <main class="page">
@@ -106,4 +126,22 @@
 			<p>Stored at {row.location}</p>
 		{/snippet}
 	</Table>
+
+	<Motion {paused}>
+		<div id="jobs">
+			<Table
+				label="Jobs"
+				rows={jobs}
+				columns={jobColumns}
+				key="id"
+				muted={(row) => row.tag === 'Low'}
+				rowHref={(row) => `#job-${row.id}`}
+			>
+				{#snippet cell({ row, column, value })}
+					{#if column.key === 'tag'}<Chip label={row.tag} />{:else}{value}{/if}
+				{/snippet}
+			</Table>
+		</div>
+	</Motion>
+	<Button onclick={() => (paused = !paused)}>{paused ? 'Resume' : 'Pause'} jobs</Button>
 </main>

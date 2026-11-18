@@ -59,7 +59,8 @@
 				<strong>Assistive technology.</strong> The thumb has <code>role="slider"</code> with the range and the
 				value. <code>valueText</code> gives the value in words for <code>aria-valuetext</code>, such as
 				“Level 3 of 10”; without it the formatted value is read. <code>hint</code> shows guidance under the
-				track and is linked by <code>aria-describedby</code>.
+				track and is linked by <code>aria-describedby</code>. An <code>aria-describedby</code> the app passes
+				goes to the thumb after the hint, so one help line under a toolbar can describe every control in it.
 			</li>
 			<li>
 				<strong>Pointer and touch.</strong> A press anywhere on the track moves the thumb there, and a drag

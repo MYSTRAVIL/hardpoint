@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Button from '#lib/components/Button.svelte';
 	import Stat from '#lib/components/Stat.svelte';
+	import Status from '#lib/components/Status.svelte';
 
 	// ---- Tick on change ----------------------------------------------------
 
@@ -81,6 +82,13 @@
 				stays muted. The label or note says the same in words.
 			</li>
 			<li>
+				<strong>A value as markup.</strong> <code>children</code> is a snippet that fills the
+				value’s place when there is no <code>value</code>. The types take one of the two, never both
+				and never neither. The snippet takes the value’s type role, the standard or the display size,
+				and it never ticks; <code>unit</code> and <code>delta</code> work as with a
+				<code>value</code>. See <a href="#markup">A value as markup</a>.
+			</li>
+			<li>
 				<strong>Size.</strong> <code>standard</code> (default) is the page-title size, 24px and 20px on
 				phones. <code>display</code> clamps from 32px on phones to 56px from 1200px; use it once per view.
 			</li>
@@ -141,6 +149,33 @@
 			delta={86}
 			deltaNote="since last quarter"
 		/>
+	</section>
+
+	<section aria-labelledby="markup">
+		<h2 id="markup" class="hp-section-title">A value as markup</h2>
+		<p class="lede">
+			A yes or no figure reads better as a word with a mark than as a string. Give the snippet to
+			<code>children</code> instead of <code>value</code>: here a <code>Status</code>, which takes
+			the value’s size. It does not tick, and a unit and a delta still follow it.
+		</p>
+		<div class="stats">
+			<Stat label="Sync allowed">
+				<Status tone="ok">Yes</Status>
+			</Stat>
+			<Stat label="Backups">
+				<Status tone="danger">Off</Status>
+			</Stat>
+			<Stat label="Review">
+				<Status>Not started</Status>
+			</Stat>
+			<Stat label="Queue" delta={2} deltaNote="since this morning">
+				<Status tone="warn">Waiting</Status>
+			</Stat>
+		</div>
+		<h3 class="hp-label sub">Display</h3>
+		<Stat variant="display" label="Deploy window">
+			<Status tone="ok">Open</Status>
+		</Stat>
 	</section>
 
 	<section aria-labelledby="tick">
@@ -236,6 +271,10 @@
 	.notes strong {
 		color: var(--text);
 		font-weight: 500;
+	}
+	.sub {
+		margin: var(--space-8) 0 var(--space-4);
+		color: var(--muted);
 	}
 	.notes.after-row {
 		margin-top: var(--space-8);

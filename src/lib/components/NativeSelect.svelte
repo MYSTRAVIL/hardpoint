@@ -26,6 +26,7 @@
 
 	let {
 		label,
+		labelHidden = false,
 		value = $bindable(),
 		items,
 		hint,
@@ -53,6 +54,13 @@
 		 * problem. The app validates; the select shows what it is given.
 		 */
 		error?: string;
+		/**
+		 * Hides the label from sight; it stays the select's accessible name.
+		 * For a select whose purpose its place makes plain, such as a sort
+		 * control in a toolbar. The well keeps its look. It overrides
+		 * `labelBeside`.
+		 */
+		labelHidden?: boolean;
 		/**
 		 * The label sits above the well by default. `true` puts it beside the
 		 * well at every width; a breakpoint puts it beside from that width up.
@@ -102,9 +110,9 @@
 	bind:this={root}
 	class="hp-native-select"
 	data-invalid={error ? '' : undefined}
-	data-label-beside={labelBeside === true ? 'always' : labelBeside || undefined}
+	data-label-beside={labelHidden ? undefined : labelBeside === true ? 'always' : labelBeside || undefined}
 >
-	<label class="hp-label" for={id}>{label}</label>
+	<label class={['hp-label', labelHidden && 'hp-visually-hidden']} for={id}>{label}</label>
 	<span class="hp-well-chevron">
 		<select
 			{...rest}

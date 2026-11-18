@@ -34,4 +34,11 @@
 			<p>Body.</p>
 		</Section>
 	</div>
+	<div id="roles">
+		<Section title="Plain group" role="none"><p>No landmark.</p></Section>
+		<Section title="Presentational group" role="presentation"><p>No landmark.</p></Section>
+		<Section title="Wide files">
+			<Table label="Wide files" {rows} {columns} key="id" wide />
+		</Section>
+	</div>
 </main>

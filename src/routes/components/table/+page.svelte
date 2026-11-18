@@ -1,8 +1,10 @@
 <script lang="ts">
 	import LabelsTable from '../../LabelsTable.svelte';
 	import Button from '#lib/components/Button.svelte';
+	import Chip from '#lib/components/Chip.svelte';
 	import NativeSelect from '#lib/components/NativeSelect.svelte';
 	import Pagination from '#lib/components/Pagination.svelte';
+	import Switch from '#lib/components/Switch.svelte';
 	import Table, { type Column, type TableMark, type TableSort } from '#lib/components/Table.svelte';
 	import Tag from '#lib/components/Tag.svelte';
 	import { Motion } from '#lib/motion/index.js';
@@ -52,6 +54,30 @@
 		{ key: 'sync', label: 'Sync', width: 'calc(10ch + var(--space-10))', mark: (f) => syncMark[f.sync] },
 		{ key: 'size', label: 'Size', width: 'calc(8ch + var(--bleed))', numeric: true }
 	];
+
+	// ---- Muted rows and live marks ------------------------------------------
+
+	type Job = { id: string; name: string; state: 'Running' | 'Queued' | 'Failed'; rank: 'High' | 'Low' };
+	const jobs: Job[] = [
+		{ id: 'J-1', name: 'Index the archive', state: 'Running', rank: 'High' },
+		{ id: 'J-2', name: 'Export the report', state: 'Queued', rank: 'High' },
+		{ id: 'J-3', name: 'Rebuild thumbnails', state: 'Running', rank: 'Low' },
+		{ id: 'J-4', name: 'Compact the log', state: 'Failed', rank: 'Low' },
+		{ id: 'J-5', name: 'Refresh the cache', state: 'Queued', rank: 'Low' }
+	];
+	const jobMark: Record<Job['state'], TableMark> = { Running: 'ok', Queued: 'warn', Failed: 'danger' };
+	const jobColumns: Column<Job>[] = [
+		{ key: 'name', label: 'Job' },
+		{
+			key: 'state',
+			label: 'State',
+			width: 'calc(10ch + var(--space-10))',
+			mark: (job) => jobMark[job.state],
+			markLive: (job) => job.state === 'Running'
+		},
+		{ key: 'rank', label: 'Rank', width: 'calc(8ch + var(--bleed))' }
+	];
+	let jobsPaused = $state(false);
 
 	// ---- Numbers ----------------------------------------------------------
 
@@ -282,9 +308,20 @@
 				600px a sort select replaces the header buttons.
 			</li>
 			<li>
+				<strong>Muted rows.</strong> <code>muted</code> takes a function from a row to a boolean. A muted
+				row shows in <code>--muted</code>, with everything in it that draws in <code>--text</code>: a
+				Chip, a Status label, a link. It is for lower-ranked rows, not for disabled ones. Status marks keep
+				their hue.
+			</li>
+			<li>
+				<strong>Live marks.</strong> <code>markLive</code> on a column pulses the mark of the rows it
+				answers <code>true</code> for, as Status <code>live</code> does. It holds still under reduced
+				motion and inside <code>&lt;Motion paused&gt;</code>.
+			</li>
+			<li>
 				<strong>Wide.</strong> <code>wide</code> makes a data grid: values keep their width, the table
-				scrolls sideways inside its own region with the first column fixed, and it scrolls on phones
-				too instead of stacking.
+				scrolls sideways inside its own group named by <code>label</code> with the first column fixed,
+				and it scrolls on phones too instead of stacking.
 			</li>
 			<li>
 				<strong>Details.</strong> The <code>detail</code> snippet gives each row an expand button and
@@ -368,6 +405,34 @@
 			The <code>cell</code> snippet here writes sizes in KB or MB.
 		</p>
 		<Table label="Files and their sync state" rows={files} columns={syncColumns} key="id" cell={fileCell} />
+	</section>
+
+	<section aria-labelledby="muted">
+		<h2 id="muted" class="hp-section-title">Muted rows and live marks</h2>
+		<p class="lede">
+			<code>muted</code> shows the rows an app ranks lower in <code>--muted</code>: here every row with a
+			Low rank. A Chip and a link in such a row follow the row’s ink. <code>markLive</code> pulses the
+			mark of each running job, in a muted row too. The pulse stops under reduced motion and while the
+			switch below pauses it.
+		</p>
+		<Motion paused={jobsPaused}>
+			<Table
+				label="Jobs by rank"
+				rows={jobs}
+				columns={jobColumns}
+				key="id"
+				muted={(job) => job.rank === 'Low'}
+				rowHref={() => '#muted'}
+				selected="J-4"
+			>
+				{#snippet cell({ row, column, value })}
+					{#if column.key === 'rank'}<Chip label={row.rank} />{:else}{value}{/if}
+				{/snippet}
+			</Table>
+			<div class="pause">
+				<Switch label="Pause animations" bind:checked={jobsPaused} />
+			</div>
+		</Motion>
 	</section>
 
 	<section aria-labelledby="numbers">
@@ -473,8 +538,9 @@
 		<h2 id="wide" class="hp-section-title">Wide tables</h2>
 		<p class="lede">
 			<code>wide</code> is for data grids whose columns matter together. Cells keep their natural width
-			and never truncate, so tags and several values fit. The table scrolls sideways inside a region
-			named by <code>label</code>; while it scrolls, the region takes focus and the arrow keys move it.
+			and never truncate, so tags and several values fit. The table scrolls sideways inside a group
+			named by <code>label</code>, not a region, so a wide table inside a Section of the same name is
+			one landmark; while it scrolls, the group takes focus and the arrow keys move it.
 			The first column stays in place. A 1px edge shows where columns go under it, and another where
 			more wait past the end. Below 600px it scrolls instead of stacking.
 		</p>
@@ -536,6 +602,13 @@
 			opens the text in a popover titled with the label (a sheet on phones), and a screen reader finds a
 			button named “About” and the label. A tooltip alone would leave touch out. In an end-aligned
 			column the mark comes before the label, so the label keeps the figures’ edge.
+		</p>
+		<p class="lede">
+			The button takes 16px of its column and a 4px gap to the label, 20px in all. On touch screens the gap
+			is 14px, 30px in all. Its target is still 24px with a mouse and 44px on touch screens, centred on
+			the mark and drawn over the gap and the cell’s padding by <code>::before</code>, so it never
+			overlaps the sort button beside it or the next column’s controls. A table with several described
+			numeric columns pays that for each, so budget for it when the width is tight.
 		</p>
 		<Table
 			label="Storage by team, described"
@@ -668,6 +741,10 @@
 		color: var(--muted);
 	}
 
+	.pause {
+		margin-top: var(--space-5);
+		max-width: 20rem;
+	}
 	.demo-controls {
 		display: flex;
 		flex-wrap: wrap;
